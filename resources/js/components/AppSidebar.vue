@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, LayoutGrid, UsersRound } from '@lucide/vue';
+import {
+    BookOpen,
+    BookOpenCheck,
+    GraduationCap,
+    LayoutGrid,
+    Target,
+    UsersRound,
+} from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
@@ -16,6 +23,9 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as competenciesIndex } from '@/routes/admin/competencies';
+import { index as coursesIndex } from '@/routes/admin/courses';
+import { index as programsIndex } from '@/routes/admin/programs';
 import { index as usersIndex } from '@/routes/admin/users';
 import type { NavItem } from '@/types';
 
@@ -39,6 +49,32 @@ const mainNavItems = computed<NavItem[]>(() => {
     }
 
     return items;
+});
+
+const academicNavItems = computed<NavItem[]>(() => {
+    if (
+        !page.props.auth.roles.some((role) => ['Admin', 'Tutor'].includes(role))
+    ) {
+        return [];
+    }
+
+    return [
+        {
+            title: 'Programs',
+            href: programsIndex(),
+            icon: GraduationCap,
+        },
+        {
+            title: 'Courses',
+            href: coursesIndex(),
+            icon: BookOpenCheck,
+        },
+        {
+            title: 'Competencies',
+            href: competenciesIndex(),
+            icon: Target,
+        },
+    ];
 });
 
 const footerNavItems: NavItem[] = [
@@ -66,6 +102,11 @@ const footerNavItems: NavItem[] = [
 
         <SidebarContent>
             <NavMain :items="mainNavItems" />
+            <NavMain
+                v-if="academicNavItems.length"
+                label="Academic"
+                :items="academicNavItems"
+            />
         </SidebarContent>
 
         <SidebarFooter>
