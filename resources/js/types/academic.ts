@@ -17,6 +17,32 @@ export type CourseOption = {
     program: string;
 };
 
+export type HierarchyCourseOption = {
+    id: number;
+    program_id: number;
+    name: string;
+};
+
+export type CompetencyOption = {
+    id: number;
+    course_id: number;
+    name: string;
+    code: string;
+};
+
+export type ModuleOption = {
+    id: number;
+    competency_id: number;
+    name: string;
+};
+
+export type LessonType = 'text' | 'video' | 'document' | 'image' | 'link';
+
+export type LessonTypeOption = {
+    value: LessonType;
+    label: string;
+};
+
 export type PaginationLink = {
     url: string | null;
     label: string;

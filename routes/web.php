@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Admin\CompetencyController;
 use App\Http\Controllers\Admin\CourseController;
+use App\Http\Controllers\Admin\LessonController;
+use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\ProgramController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +28,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('admin/competencies', CompetencyController::class)
         ->except('show')
         ->names('admin.competencies');
+
+    Route::resource('admin/modules', ModuleController::class)
+        ->except('show')
+        ->names('admin.modules');
+
+    Route::get('admin/lessons/{lesson}/file', [LessonController::class, 'file'])
+        ->name('admin.lessons.file');
+
+    Route::resource('admin/lessons', LessonController::class)
+        ->names('admin.lessons');
 });
 
 require __DIR__.'/settings.php';

@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AcademicStatus;
-use Database\Factories\CompetencyFactory;
+use Database\Factories\ModuleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,43 +15,41 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
- * @property int $course_id
- * @property string $code
+ * @property int $competency_id
  * @property string $name
  * @property string $slug
  * @property string|null $description
- * @property string|null $learning_objectives
  * @property int $sort_order
  * @property AcademicStatus $status
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
- * @property-read Course $course
- * @property-read Collection<int, Module> $modules
- * @property-read int|null $modules_count
+ * @property-read Competency $competency
+ * @property-read Collection<int, Lesson> $lessons
+ * @property-read int|null $lessons_count
  */
-#[Fillable(['course_id', 'code', 'name', 'slug', 'description', 'learning_objectives', 'sort_order', 'status'])]
-class Competency extends Model
+#[Fillable(['competency_id', 'name', 'slug', 'description', 'sort_order', 'status'])]
+class Module extends Model
 {
-    /** @use HasFactory<CompetencyFactory> */
+    /** @use HasFactory<ModuleFactory> */
     use HasFactory, SoftDeletes;
 
     /**
-     * @return BelongsTo<Course, $this>
+     * @return BelongsTo<Competency, $this>
      */
-    public function course(): BelongsTo
+    public function competency(): BelongsTo
     {
-        return $this->belongsTo(Course::class);
+        return $this->belongsTo(Competency::class);
     }
 
     /**
-     * @return HasMany<Module, $this>
+     * @return HasMany<Lesson, $this>
      */
-    public function modules(): HasMany
+    public function lessons(): HasMany
     {
-        return $this->hasMany(Module::class)
+        return $this->hasMany(Lesson::class)
             ->orderBy('sort_order')
-            ->orderBy('name');
+            ->orderBy('title');
     }
 
     /**

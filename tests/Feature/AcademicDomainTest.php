@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Competency;
 use App\Models\Course;
+use App\Models\Lesson;
+use App\Models\Module;
 use App\Models\Program;
 use Database\Seeders\AcademicSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -64,8 +66,12 @@ class AcademicDomainTest extends TestCase
         $this->assertSame(1, Program::query()->count());
         $this->assertSame(2, $program->courses()->count());
         $this->assertSame(7, Competency::query()->count());
+        $this->assertSame(2, Module::query()->count());
+        $this->assertSame(7, Lesson::query()->count());
         $this->assertDatabaseHas('courses', ['name' => 'Frontend Fundamentals']);
         $this->assertDatabaseHas('courses', ['name' => 'Backend Fundamentals']);
         $this->assertDatabaseHas('competencies', ['name' => 'Laravel Fundamentals']);
+        $this->assertDatabaseHas('modules', ['name' => 'Getting Started with HTML']);
+        $this->assertDatabaseHas('lessons', ['title' => 'Introduction to HTML']);
     }
 }

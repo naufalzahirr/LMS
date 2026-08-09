@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AcademicStatus;
 use App\Models\Competency;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CompetencyService
 {
@@ -30,6 +31,14 @@ class CompetencyService
 
     public function delete(Competency $competency): void
     {
-        DB::transaction(fn () => $competency->delete());
+        DB::transaction(function () use ($competency): void {
+            if ($competency->modules()->exists()) {
+                throw ValidationException::withMessages([
+                    'competency' => __('This competency cannot be deleted while it still has modules.'),
+                ]);
+            }
+
+            $competency->delete();
+        });
     }
 }

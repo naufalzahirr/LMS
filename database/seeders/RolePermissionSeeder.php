@@ -18,6 +18,8 @@ class RolePermissionSeeder extends Seeder
         'manage-programs',
         'manage-courses',
         'manage-competencies',
+        'manage-modules',
+        'manage-lessons',
         'manage-classes',
         'manage-assessments',
         'view-all-progress',

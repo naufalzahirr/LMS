@@ -5,6 +5,8 @@ import {
     BookOpenCheck,
     GraduationCap,
     LayoutGrid,
+    LibraryBig,
+    NotebookText,
     Target,
     UsersRound,
 } from '@lucide/vue';
@@ -25,6 +27,8 @@ import {
 import { dashboard } from '@/routes';
 import { index as competenciesIndex } from '@/routes/admin/competencies';
 import { index as coursesIndex } from '@/routes/admin/courses';
+import { index as lessonsIndex } from '@/routes/admin/lessons';
+import { index as modulesIndex } from '@/routes/admin/modules';
 import { index as programsIndex } from '@/routes/admin/programs';
 import { index as usersIndex } from '@/routes/admin/users';
 import type { NavItem } from '@/types';
@@ -73,6 +77,16 @@ const academicNavItems = computed<NavItem[]>(() => {
             title: 'Competencies',
             href: competenciesIndex(),
             icon: Target,
+        },
+        {
+            title: 'Modules',
+            href: modulesIndex(),
+            icon: LibraryBig,
+        },
+        {
+            title: 'Lessons',
+            href: lessonsIndex(),
+            icon: NotebookText,
         },
     ];
 });
