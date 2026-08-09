@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class UserService
 {
@@ -46,6 +47,19 @@ class UserService
 
     public function delete(User $user): void
     {
-        $user->delete();
+        DB::transaction(function () use ($user): void {
+            if (
+                $user->enrollments()->exists()
+                || $user->teachingClasses()->exists()
+                || $user->children()->exists()
+                || $user->parents()->exists()
+            ) {
+                throw ValidationException::withMessages([
+                    'user' => __('This user cannot be deleted while referenced by class delivery records.'),
+                ]);
+            }
+
+            $user->delete();
+        });
     }
 }

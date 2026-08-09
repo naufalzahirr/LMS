@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Program $program
  * @property-read Collection<int, Competency> $competencies
+ * @property-read Collection<int, LearningClass> $learningClasses
  * @property-read int|null $competencies_count
  */
 #[Fillable(['program_id', 'name', 'slug', 'code', 'description', 'status', 'sort_order'])]
@@ -51,6 +52,14 @@ class Course extends Model
         return $this->hasMany(Competency::class)
             ->orderBy('sort_order')
             ->orderBy('name');
+    }
+
+    /**
+     * @return HasMany<LearningClass, $this>
+     */
+    public function learningClasses(): HasMany
+    {
+        return $this->hasMany(LearningClass::class)->orderBy('name');
     }
 
     /**

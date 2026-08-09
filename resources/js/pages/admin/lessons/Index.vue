@@ -39,6 +39,8 @@ type LessonRow = {
     status: AcademicStatus;
     duration_minutes: number | null;
     sort_order: number;
+    can_update: boolean;
+    can_delete: boolean;
 };
 
 const props = defineProps<{
@@ -372,7 +374,7 @@ function removeLesson(lesson: LessonRow): void {
                                                 ><Eye /></Link
                                         ></Button>
                                         <Button
-                                            v-if="canManage"
+                                            v-if="lesson.can_update"
                                             variant="outline"
                                             size="icon-sm"
                                             as-child
@@ -386,7 +388,7 @@ function removeLesson(lesson: LessonRow): void {
                                                 ><Pencil /></Link
                                         ></Button>
                                         <Button
-                                            v-if="canManage"
+                                            v-if="lesson.can_delete"
                                             variant="destructive"
                                             size="icon-sm"
                                             :aria-label="`Delete ${lesson.title}`"

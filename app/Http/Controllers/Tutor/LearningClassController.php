@@ -1,0 +1,109 @@
+<?php
+
+namespace App\Http\Controllers\Tutor;
+
+use App\Enums\EnrollmentStatus;
+use App\Enums\LearningClassStatus;
+use App\Http\Controllers\Controller;
+use App\Models\Enrollment;
+use App\Models\LearningClass;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class LearningClassController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        $this->authorize('viewAny', LearningClass::class);
+
+        $search = trim($request->string('search')->toString());
+        $status = LearningClassStatus::tryFrom($request->string('status')->toString());
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $query = LearningClass::query()
+            ->whereHas('tutors', fn ($query) => $query->whereKey($user->id))
+            ->with('course.program:id,name')
+            ->withCount([
+                'enrollments as active_students_count' => fn ($query) => $query->where('status', EnrollmentStatus::Active->value),
+            ]);
+
+        if ($search !== '') {
+            $query->where(function ($query) use ($search): void {
+                $query->where('learning_classes.name', 'like', "%{$search}%")
+                    ->orWhere('learning_classes.code', 'like', "%{$search}%");
+            });
+        }
+
+        if ($status !== null) {
+            $query->where('learning_classes.status', $status->value);
+        }
+
+        $paginator = $query->orderByDesc('learning_classes.start_date')->paginate(10)->withQueryString();
+
+        return Inertia::render('tutor/classes/Index', [
+            'classes' => [
+                'data' => $paginator->getCollection()->map(fn (LearningClass $learningClass): array => [
+                    'id' => $learningClass->id,
+                    'name' => $learningClass->name,
+                    'code' => $learningClass->code,
+                    'course' => $learningClass->course->name,
+                    'program' => $learningClass->course->program->name,
+                    'status' => $learningClass->status->value,
+                    'start_date' => $learningClass->start_date?->toDateString(),
+                    'end_date' => $learningClass->end_date?->toDateString(),
+                    'active_students_count' => $learningClass->active_students_count ?? 0,
+                ])->all(),
+                'links' => $paginator->linkCollection()->all(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
+            'filters' => [
+                'search' => $search,
+                'status' => $status->value ?? '',
+            ],
+            'statuses' => LearningClassStatus::options(),
+        ]);
+    }
+
+    public function show(LearningClass $learningClass): Response
+    {
+        $this->authorize('view', $learningClass);
+        $learningClass->load([
+            'course.program:id,name',
+            'course.competencies.modules.lessons',
+            'enrollments.student:id,name,email',
+        ]);
+
+        return Inertia::render('tutor/classes/Show', [
+            'learningClass' => [
+                'id' => $learningClass->id,
+                'name' => $learningClass->name,
+                'code' => $learningClass->code,
+                'description' => $learningClass->description,
+                'course' => $learningClass->course->name,
+                'program' => $learningClass->course->program->name,
+                'status' => $learningClass->status->value,
+                'start_date' => $learningClass->start_date?->toDateString(),
+                'end_date' => $learningClass->end_date?->toDateString(),
+            ],
+            'enrollments' => $learningClass->enrollments->map(fn (Enrollment $enrollment): array => [
+                'id' => $enrollment->id,
+                'student' => [
+                    'name' => $enrollment->student->name,
+                    'email' => $enrollment->student->email,
+                ],
+                'status' => $enrollment->status->value,
+            ])->values()->all(),
+            'contentSummary' => [
+                'competencies' => $learningClass->course->competencies->count(),
+                'modules' => $learningClass->course->competencies->sum(fn ($competency): int => $competency->modules->count()),
+                'lessons' => $learningClass->course->competencies->sum(
+                    fn ($competency): int => $competency->modules->sum(fn ($module): int => $module->lessons->count()),
+                ),
+            ],
+        ]);
+    }
+}

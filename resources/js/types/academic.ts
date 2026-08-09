@@ -28,12 +28,14 @@ export type CompetencyOption = {
     course_id: number;
     name: string;
     code: string;
+    can_manage?: boolean;
 };
 
 export type ModuleOption = {
     id: number;
     competency_id: number;
     name: string;
+    can_manage?: boolean;
 };
 
 export type LessonType = 'text' | 'video' | 'document' | 'image' | 'link';

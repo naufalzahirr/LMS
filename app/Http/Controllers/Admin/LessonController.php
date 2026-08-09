@@ -12,7 +12,9 @@ use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Module;
 use App\Models\Program;
+use App\Models\User;
 use App\Services\LessonService;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -23,7 +25,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LessonController extends Controller
 {
-    public function __construct(private readonly LessonService $lessonService) {}
+    public function __construct(
+        private readonly LessonService $lessonService,
+        private readonly TutorCourseAccessService $tutorCourseAccess,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -82,6 +87,11 @@ class LessonController extends Controller
             ->paginate(10)
             ->withQueryString();
 
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $adminCanManage = $user->hasRole('Admin') && $user->hasPermissionTo('manage-lessons');
+        $manageableCourseIds = $this->tutorCourseAccess->manageableCourseIds($user);
+
         return Inertia::render('admin/lessons/Index', [
             'lessons' => [
                 'data' => $paginator->getCollection()->map(fn (Lesson $lesson): array => [
@@ -94,6 +104,8 @@ class LessonController extends Controller
                     'status' => $lesson->status->value,
                     'duration_minutes' => $lesson->duration_minutes,
                     'sort_order' => $lesson->sort_order,
+                    'can_update' => $adminCanManage || in_array($lesson->module->competency->course_id, $manageableCourseIds, true),
+                    'can_delete' => $adminCanManage || in_array($lesson->module->competency->course_id, $manageableCourseIds, true),
                 ])->all(),
                 'links' => $paginator->linkCollection()->all(),
                 'from' => $paginator->firstItem(),
@@ -109,19 +121,21 @@ class LessonController extends Controller
                 'lesson_type' => $lessonType->value ?? '',
                 'status' => $status->value ?? '',
             ],
-            ...$this->hierarchyOptions(),
+            ...$this->hierarchyOptions($user),
             'lessonTypes' => LessonType::options(),
             'statuses' => AcademicStatus::options(),
-            'canManage' => $request->user()?->can('create', Lesson::class) ?? false,
+            'canManage' => $adminCanManage || $manageableCourseIds !== [],
         ]);
     }
 
     public function create(): Response
     {
         $this->authorize('create', Lesson::class);
+        $user = request()->user();
+        abort_unless($user instanceof User, 401);
 
         return Inertia::render('admin/lessons/Create', [
-            ...$this->hierarchyOptions(),
+            ...$this->hierarchyOptions($user, true),
             'lessonTypes' => LessonType::options(),
             'statuses' => AcademicStatus::options(),
         ]);
@@ -166,6 +180,8 @@ class LessonController extends Controller
     {
         $this->authorize('update', $lesson);
         $lesson->load('module.competency.course');
+        $user = request()->user();
+        abort_unless($user instanceof User, 401);
 
         return Inertia::render('admin/lessons/Edit', [
             'lesson' => [
@@ -184,7 +200,7 @@ class LessonController extends Controller
                 'sort_order' => $lesson->sort_order,
                 'status' => $lesson->status->value,
             ],
-            ...$this->hierarchyOptions(),
+            ...$this->hierarchyOptions($user, true),
             'lessonTypes' => LessonType::options(),
             'statuses' => AcademicStatus::options(),
         ]);
@@ -232,29 +248,46 @@ class LessonController extends Controller
      * @return array{
      *     programs: array<int, array{id: int, name: string}>,
      *     courses: array<int, array{id: int, program_id: int, name: string}>,
-     *     competencies: array<int, array{id: int, course_id: int, name: string, code: string}>,
-     *     modules: array<int, array{id: int, competency_id: int, name: string}>
+     *     competencies: array<int, array{id: int, course_id: int, name: string, code: string, can_manage: bool}>,
+     *     modules: array<int, array{id: int, competency_id: int, name: string, can_manage: bool}>
      * }
      */
-    private function hierarchyOptions(): array
+    private function hierarchyOptions(User $user, bool $manageableOnly = false): array
     {
+        $manageableCourseIds = $user->hasRole('Admin')
+            ? null
+            : $this->tutorCourseAccess->manageableCourseIds($user);
+        $programQuery = Program::query()->orderBy('name');
+        $courseQuery = Course::query()->orderBy('name');
+        $competencyQuery = Competency::query()->orderBy('name');
+        $moduleQuery = Module::query()->with('competency:id,course_id')->orderBy('name');
+
+        if ($manageableOnly && $manageableCourseIds !== null) {
+            $programQuery->whereHas('courses', fn ($query) => $query->whereIn('id', $manageableCourseIds));
+            $courseQuery->whereIn('id', $manageableCourseIds);
+            $competencyQuery->whereIn('course_id', $manageableCourseIds);
+            $moduleQuery->whereHas('competency', fn ($query) => $query->whereIn('course_id', $manageableCourseIds));
+        }
+
         return [
-            'programs' => Program::query()->orderBy('name')->get(['id', 'name'])
+            'programs' => $programQuery->get(['id', 'name'])
                 ->map(fn (Program $program): array => ['id' => $program->id, 'name' => $program->name])->all(),
-            'courses' => Course::query()->orderBy('name')->get(['id', 'program_id', 'name'])
+            'courses' => $courseQuery->get(['id', 'program_id', 'name'])
                 ->map(fn (Course $course): array => ['id' => $course->id, 'program_id' => $course->program_id, 'name' => $course->name])->all(),
-            'competencies' => Competency::query()->orderBy('name')->get(['id', 'course_id', 'name', 'code'])
+            'competencies' => $competencyQuery->get(['id', 'course_id', 'name', 'code'])
                 ->map(fn (Competency $competency): array => [
                     'id' => $competency->id,
                     'course_id' => $competency->course_id,
                     'name' => $competency->name,
                     'code' => $competency->code,
+                    'can_manage' => $manageableCourseIds === null || in_array($competency->course_id, $manageableCourseIds, true),
                 ])->all(),
-            'modules' => Module::query()->orderBy('name')->get(['id', 'competency_id', 'name'])
+            'modules' => $moduleQuery->get(['id', 'competency_id', 'name'])
                 ->map(fn (Module $module): array => [
                     'id' => $module->id,
                     'competency_id' => $module->competency_id,
                     'name' => $module->name,
+                    'can_manage' => $manageableCourseIds === null || in_array($module->competency->course_id, $manageableCourseIds, true),
                 ])->all(),
         ];
     }

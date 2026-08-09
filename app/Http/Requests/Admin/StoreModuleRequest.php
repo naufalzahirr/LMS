@@ -13,7 +13,15 @@ class StoreModuleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('create', Module::class) ?? false;
+        $user = $this->user();
+
+        if ($user?->hasRole('Admin')) {
+            return $user->can('create', Module::class);
+        }
+
+        $competency = Competency::query()->find($this->integer('competency_id'));
+
+        return $competency !== null && ($user?->can('create', [Module::class, $competency]) ?? false);
     }
 
     /**

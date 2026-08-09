@@ -6,6 +6,7 @@ use App\Enums\AcademicStatus;
 use App\Enums\LessonType;
 use App\Models\Lesson;
 use App\Models\Module;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
@@ -15,7 +16,19 @@ class UpdateLessonRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('update', $this->lesson()) ?? false;
+        $user = $this->user();
+
+        if (! ($user?->can('update', $this->lesson()) ?? false)) {
+            return false;
+        }
+
+        if ($user->hasRole('Admin')) {
+            return true;
+        }
+
+        $module = Module::query()->find($this->integer('module_id'));
+
+        return $module !== null && app(TutorCourseAccessService::class)->canManageModule($user, $module);
     }
 
     /**

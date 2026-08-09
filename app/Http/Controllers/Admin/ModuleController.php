@@ -10,7 +10,9 @@ use App\Models\Competency;
 use App\Models\Course;
 use App\Models\Module;
 use App\Models\Program;
+use App\Models\User;
 use App\Services\ModuleService;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -18,7 +20,10 @@ use Inertia\Response;
 
 class ModuleController extends Controller
 {
-    public function __construct(private readonly ModuleService $moduleService) {}
+    public function __construct(
+        private readonly ModuleService $moduleService,
+        private readonly TutorCourseAccessService $tutorCourseAccess,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -66,6 +71,11 @@ class ModuleController extends Controller
             ->paginate(10)
             ->withQueryString();
 
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $adminCanManage = $user->hasRole('Admin') && $user->hasPermissionTo('manage-modules');
+        $manageableCourseIds = $this->tutorCourseAccess->manageableCourseIds($user);
+
         return Inertia::render('admin/modules/Index', [
             'modules' => [
                 'data' => $paginator->getCollection()->map(fn (Module $module): array => [
@@ -77,6 +87,8 @@ class ModuleController extends Controller
                     'status' => $module->status->value,
                     'sort_order' => $module->sort_order,
                     'lessons_count' => $module->lessons_count ?? 0,
+                    'can_update' => $adminCanManage || in_array($module->competency->course_id, $manageableCourseIds, true),
+                    'can_delete' => $adminCanManage || in_array($module->competency->course_id, $manageableCourseIds, true),
                 ])->all(),
                 'links' => $paginator->linkCollection()->all(),
                 'from' => $paginator->firstItem(),
@@ -90,18 +102,20 @@ class ModuleController extends Controller
                 'competency_id' => $competencyId > 0 ? (string) $competencyId : '',
                 'status' => $status->value ?? '',
             ],
-            ...$this->hierarchyOptions(),
+            ...$this->hierarchyOptions($user),
             'statuses' => AcademicStatus::options(),
-            'canManage' => $request->user()?->can('create', Module::class) ?? false,
+            'canManage' => $adminCanManage || $manageableCourseIds !== [],
         ]);
     }
 
     public function create(): Response
     {
         $this->authorize('create', Module::class);
+        $user = request()->user();
+        abort_unless($user instanceof User, 401);
 
         return Inertia::render('admin/modules/Create', [
-            ...$this->hierarchyOptions(),
+            ...$this->hierarchyOptions($user, true),
             'statuses' => AcademicStatus::options(),
         ]);
     }
@@ -119,6 +133,8 @@ class ModuleController extends Controller
     {
         $this->authorize('update', $module);
         $module->load('competency.course');
+        $user = request()->user();
+        abort_unless($user instanceof User, 401);
 
         return Inertia::render('admin/modules/Edit', [
             'module' => [
@@ -132,7 +148,7 @@ class ModuleController extends Controller
                 'sort_order' => $module->sort_order,
                 'status' => $module->status->value,
             ],
-            ...$this->hierarchyOptions(),
+            ...$this->hierarchyOptions($user, true),
             'statuses' => AcademicStatus::options(),
         ]);
     }
@@ -161,35 +177,46 @@ class ModuleController extends Controller
      * @return array{
      *     programs: array<int, array{id: int, name: string}>,
      *     courses: array<int, array{id: int, program_id: int, name: string}>,
-     *     competencies: array<int, array{id: int, course_id: int, name: string, code: string}>
+     *     competencies: array<int, array{id: int, course_id: int, name: string, code: string, can_manage: bool}>
      * }
      */
-    private function hierarchyOptions(): array
+    private function hierarchyOptions(User $user, bool $manageableOnly = false): array
     {
+        $manageableCourseIds = $user->hasRole('Admin')
+            ? null
+            : $this->tutorCourseAccess->manageableCourseIds($user);
+        $programQuery = Program::query()->orderBy('name');
+        $courseQuery = Course::query()->orderBy('name');
+        $competencyQuery = Competency::query()->orderBy('name');
+
+        if ($manageableOnly && $manageableCourseIds !== null) {
+            $programQuery->whereHas('courses', fn ($query) => $query->whereIn('id', $manageableCourseIds));
+            $courseQuery->whereIn('id', $manageableCourseIds);
+            $competencyQuery->whereIn('course_id', $manageableCourseIds);
+        }
+
         return [
-            'programs' => Program::query()
-                ->orderBy('name')
+            'programs' => $programQuery
                 ->get(['id', 'name'])
                 ->map(fn (Program $program): array => [
                     'id' => $program->id,
                     'name' => $program->name,
                 ])->all(),
-            'courses' => Course::query()
-                ->orderBy('name')
+            'courses' => $courseQuery
                 ->get(['id', 'program_id', 'name'])
                 ->map(fn (Course $course): array => [
                     'id' => $course->id,
                     'program_id' => $course->program_id,
                     'name' => $course->name,
                 ])->all(),
-            'competencies' => Competency::query()
-                ->orderBy('name')
+            'competencies' => $competencyQuery
                 ->get(['id', 'course_id', 'name', 'code'])
                 ->map(fn (Competency $competency): array => [
                     'id' => $competency->id,
                     'course_id' => $competency->course_id,
                     'name' => $competency->name,
                     'code' => $competency->code,
+                    'can_manage' => $manageableCourseIds === null || in_array($competency->course_id, $manageableCourseIds, true),
                 ])->all(),
         ];
     }

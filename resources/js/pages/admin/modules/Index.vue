@@ -36,6 +36,8 @@ type ModuleRow = {
     status: AcademicStatus;
     sort_order: number;
     lessons_count: number;
+    can_update: boolean;
+    can_delete: boolean;
 };
 
 const props = defineProps<{
@@ -302,6 +304,7 @@ function removeModule(module: ModuleRow): void {
                                 <td v-if="canManage" class="px-5 py-4">
                                     <div class="flex justify-end gap-2">
                                         <Button
+                                            v-if="module.can_update"
                                             variant="outline"
                                             size="icon-sm"
                                             as-child
@@ -317,6 +320,7 @@ function removeModule(module: ModuleRow): void {
                                             /></Link>
                                         </Button>
                                         <Button
+                                            v-if="module.can_delete"
                                             variant="destructive"
                                             size="icon-sm"
                                             :aria-label="`Delete ${module.name}`"

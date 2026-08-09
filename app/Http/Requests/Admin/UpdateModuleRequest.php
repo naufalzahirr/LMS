@@ -5,6 +5,7 @@ namespace App\Http\Requests\Admin;
 use App\Enums\AcademicStatus;
 use App\Models\Competency;
 use App\Models\Module;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -13,7 +14,19 @@ class UpdateModuleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('update', $this->module()) ?? false;
+        $user = $this->user();
+
+        if (! ($user?->can('update', $this->module()) ?? false)) {
+            return false;
+        }
+
+        if ($user->hasRole('Admin')) {
+            return true;
+        }
+
+        $competency = Competency::query()->find($this->integer('competency_id'));
+
+        return $competency !== null && app(TutorCourseAccessService::class)->canManageCompetency($user, $competency);
     }
 
     /**

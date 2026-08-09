@@ -15,7 +15,15 @@ class StoreLessonRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('create', Lesson::class) ?? false;
+        $user = $this->user();
+
+        if ($user?->hasRole('Admin')) {
+            return $user->can('create', Lesson::class);
+        }
+
+        $module = Module::query()->find($this->integer('module_id'));
+
+        return $module !== null && ($user?->can('create', [Lesson::class, $module]) ?? false);
     }
 
     /**

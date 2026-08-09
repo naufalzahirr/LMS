@@ -8,6 +8,7 @@ import {
     LibraryBig,
     NotebookText,
     Target,
+    UserRoundCog,
     UsersRound,
 } from '@lucide/vue';
 import { computed } from 'vue';
@@ -25,12 +26,15 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as adminClassesIndex } from '@/routes/admin/classes';
 import { index as competenciesIndex } from '@/routes/admin/competencies';
 import { index as coursesIndex } from '@/routes/admin/courses';
 import { index as lessonsIndex } from '@/routes/admin/lessons';
 import { index as modulesIndex } from '@/routes/admin/modules';
+import { index as parentStudentsIndex } from '@/routes/admin/parent-students';
 import { index as programsIndex } from '@/routes/admin/programs';
 import { index as usersIndex } from '@/routes/admin/users';
+import { index as tutorClassesIndex } from '@/routes/tutor/classes';
 import type { NavItem } from '@/types';
 
 const page = usePage();
@@ -52,6 +56,14 @@ const mainNavItems = computed<NavItem[]>(() => {
         });
     }
 
+    if (page.props.auth.permissions.includes('manage-parent-relationships')) {
+        items.push({
+            title: 'Parent–students',
+            href: parentStudentsIndex(),
+            icon: UserRoundCog,
+        });
+    }
+
     return items;
 });
 
@@ -62,7 +74,7 @@ const academicNavItems = computed<NavItem[]>(() => {
         return [];
     }
 
-    return [
+    const items: NavItem[] = [
         {
             title: 'Programs',
             href: programsIndex(),
@@ -89,6 +101,18 @@ const academicNavItems = computed<NavItem[]>(() => {
             icon: NotebookText,
         },
     ];
+
+    items.push({
+        title: page.props.auth.roles.includes('Admin')
+            ? 'Classes'
+            : 'My classes',
+        href: page.props.auth.roles.includes('Admin')
+            ? adminClassesIndex()
+            : tutorClassesIndex(),
+        icon: UsersRound,
+    });
+
+    return items;
 });
 
 const footerNavItems: NavItem[] = [
