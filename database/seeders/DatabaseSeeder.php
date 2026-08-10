@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             AcademicSeeder::class,
             DeliverySeeder::class,
             AssessmentSeeder::class,
+            AssessmentAttemptSeeder::class,
         ]);
     }
 }

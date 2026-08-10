@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Form, router, usePage } from '@inertiajs/vue3';
-import { Trash2 } from '@lucide/vue';
+import { Form, Link, router, usePage } from '@inertiajs/vue3';
+import { ClipboardCheck, Trash2 } from '@lucide/vue';
 import { computed } from 'vue';
 import ClassAssessmentController from '@/actions/App/Http/Controllers/Admin/ClassAssessmentController';
 import AlertError from '@/components/AlertError.vue';
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import type {
     ClassAssessmentAssignment,
+    AssessmentFeedbackMode,
     ClassAssessmentOption,
     ClassAssessmentStatus,
     SelectOption,
@@ -29,6 +30,7 @@ const props = defineProps<{
     assignments: ClassAssessmentAssignment[];
     assessmentOptions: ClassAssessmentOption[];
     statuses: SelectOption<ClassAssessmentStatus>[];
+    feedbackModes: SelectOption<AssessmentFeedbackMode>[];
 }>();
 const page = usePage();
 const actionErrors = computed<string[]>(() => {
@@ -40,6 +42,8 @@ const actionErrors = computed<string[]>(() => {
         'closes_at',
         'max_attempts',
         'status',
+        'feedback_mode',
+        'assessment_assignment',
     ]) {
         const error = page.props.errors?.[key];
 
@@ -71,7 +75,7 @@ function remove(item: ClassAssessmentAssignment): void {
             />
             <Form
                 v-bind="ClassAssessmentController.store.form(classId)"
-                class="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_12rem_12rem_8rem_10rem_auto]"
+                class="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_12rem_12rem_8rem_12rem_10rem_auto]"
                 v-slot="{ errors, processing }"
             >
                 <div class="grid gap-2">
@@ -120,6 +124,24 @@ function remove(item: ClassAssessmentAssignment): void {
                     /><InputError :message="errors.max_attempts" />
                 </div>
                 <div class="grid gap-2">
+                    <Label for="feedback_mode">Feedback</Label
+                    ><Select
+                        name="feedback_mode"
+                        default-value="after_final_attempt"
+                        required
+                        ><SelectTrigger id="feedback_mode" class="w-full"
+                            ><SelectValue /></SelectTrigger
+                        ><SelectContent
+                            ><SelectItem
+                                v-for="mode in feedbackModes"
+                                :key="mode.value"
+                                :value="mode.value"
+                                >{{ mode.label }}</SelectItem
+                            ></SelectContent
+                        ></Select
+                    >
+                </div>
+                <div class="grid gap-2">
                     <Label for="assignment_status">Status</Label
                     ><Select name="status" default-value="active" required
                         ><SelectTrigger id="assignment_status" class="w-full"
@@ -159,6 +181,13 @@ function remove(item: ClassAssessmentAssignment): void {
                             </p>
                         </div>
                         <div class="flex items-center gap-2">
+                            <Button variant="outline" size="sm" as-child
+                                ><Link :href="assignment.attempt_url"
+                                    ><ClipboardCheck />
+                                    {{ assignment.attempts_count }}
+                                    attempts</Link
+                                ></Button
+                            >
                             <Badge
                                 :variant="
                                     assignment.status === 'active'
@@ -170,6 +199,7 @@ function remove(item: ClassAssessmentAssignment): void {
                                 size="icon-sm"
                                 variant="destructive"
                                 aria-label="Unassign assessment"
+                                :disabled="assignment.attempts_count > 0"
                                 @click="remove(assignment)"
                                 ><Trash2
                             /></Button>
@@ -182,7 +212,7 @@ function remove(item: ClassAssessmentAssignment): void {
                                 assignment.id,
                             ])
                         "
-                        class="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[12rem_12rem_8rem_10rem_auto]"
+                        class="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[12rem_12rem_8rem_12rem_10rem_auto]"
                         v-slot="{ processing }"
                     >
                         <div class="grid gap-2">
@@ -216,6 +246,27 @@ function remove(item: ClassAssessmentAssignment): void {
                                 :default-value="assignment.max_attempts"
                                 required
                             />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label :for="`feedback-${assignment.id}`"
+                                >Feedback</Label
+                            ><Select
+                                name="feedback_mode"
+                                :default-value="assignment.feedback_mode"
+                                required
+                                ><SelectTrigger
+                                    :id="`feedback-${assignment.id}`"
+                                    class="w-full"
+                                    ><SelectValue /></SelectTrigger
+                                ><SelectContent
+                                    ><SelectItem
+                                        v-for="mode in feedbackModes"
+                                        :key="mode.value"
+                                        :value="mode.value"
+                                        >{{ mode.label }}</SelectItem
+                                    ></SelectContent
+                                ></Select
+                            >
                         </div>
                         <div class="grid gap-2">
                             <Label :for="`status-${assignment.id}`"

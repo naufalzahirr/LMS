@@ -5,6 +5,7 @@ import {
     CheckCircle2,
     Circle,
     CirclePlay,
+    ClipboardList,
     Clock3,
 } from '@lucide/vue';
 import Heading from '@/components/Heading.vue';
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { index } from '@/routes/student/classes';
+import type { StudentAssessmentCard } from '@/types/assessment-attempt';
 import type { PlayerCompetency, StudentClassDetails } from '@/types/learning';
 
 defineProps<{
@@ -24,6 +26,8 @@ defineProps<{
         continue_lesson_id: number | null;
     };
     competencies: PlayerCompetency[];
+    assessments: StudentAssessmentCard[];
+    assessments_url: string;
 }>();
 
 defineOptions({
@@ -72,6 +76,22 @@ defineOptions({
                 </div>
                 <p class="text-3xl font-semibold">{{ progress.percentage }}%</p>
             </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader class="flex-row items-center justify-between">
+                <div>
+                    <CardTitle>Assessments</CardTitle>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        {{ assessments.length }} assigned to this class
+                    </p>
+                </div>
+                <Button variant="outline" as-child>
+                    <Link :href="assessments_url">
+                        <ClipboardList /> View assessments
+                    </Link>
+                </Button>
+            </CardHeader>
         </Card>
 
         <div v-if="competencies.length" class="space-y-6">

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Enums\AcademicStatus;
+use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentPurpose;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
@@ -127,6 +128,7 @@ class AssessmentAuthoringManagementTest extends TestCase
             'closes_at' => now()->addWeek()->format('Y-m-d H:i:s'),
             'max_attempts' => 2,
             'status' => ClassAssessmentStatus::Active->value,
+            'feedback_mode' => AssessmentFeedbackMode::AfterFinalAttempt->value,
         ];
 
         $this->actingAs($admin)->post(route('admin.classes.assessments.store', $learningClass), $payload)
@@ -144,6 +146,7 @@ class AssessmentAuthoringManagementTest extends TestCase
             'closes_at' => null,
             'max_attempts' => 3,
             'status' => ClassAssessmentStatus::Inactive->value,
+            'feedback_mode' => AssessmentFeedbackMode::AfterFinalAttempt->value,
         ])->assertForbidden();
         $this->actingAs($tutor)->delete(route('admin.classes.assessments.destroy', [$learningClass, $assignment]))
             ->assertForbidden();
@@ -165,6 +168,7 @@ class AssessmentAuthoringManagementTest extends TestCase
                 'closes_at' => null,
                 'max_attempts' => 1,
                 'status' => ClassAssessmentStatus::Active->value,
+                'feedback_mode' => AssessmentFeedbackMode::AfterFinalAttempt->value,
             ])->assertSessionHasErrors('assessment_id');
         }
 

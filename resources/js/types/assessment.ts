@@ -9,6 +9,8 @@ export type QuestionType =
 export type AssessmentPurpose = 'practice' | 'formative' | 'mastery';
 export type AssessmentStatus = 'draft' | 'published' | 'archived';
 export type ClassAssessmentStatus = 'active' | 'inactive';
+export type AssessmentFeedbackMode =
+    'score_only' | 'after_final_attempt' | 'after_each_attempt';
 
 export type SelectOption<T extends string = string> = {
     value: T;
@@ -83,6 +85,9 @@ export type ClassAssessmentAssignment = {
     closes_at: string | null;
     max_attempts: number;
     status: ClassAssessmentStatus;
+    feedback_mode: AssessmentFeedbackMode;
+    attempts_count: number;
+    attempt_url: string;
 };
 
 export type ClassAssessmentOption = {

@@ -44,6 +44,12 @@ class QuestionService
     public function update(Question $question, array $data): Question
     {
         return DB::transaction(function () use ($question, $data): Question {
+            if ($question->attemptQuestions()->exists()) {
+                throw ValidationException::withMessages([
+                    'question' => __('This question has already been used in a student attempt and cannot be structurally edited.'),
+                ]);
+            }
+
             $this->validateData($data);
 
             if ($question->assessmentQuestions()->exists() && $question->competency_id !== $data['competency_id']) {
@@ -62,6 +68,12 @@ class QuestionService
     public function delete(Question $question): void
     {
         DB::transaction(function () use ($question): void {
+            if ($question->attemptQuestions()->exists()) {
+                throw ValidationException::withMessages([
+                    'question' => __('This question has already been used in a student attempt and cannot be structurally edited.'),
+                ]);
+            }
+
             if ($question->assessmentQuestions()->exists()) {
                 throw ValidationException::withMessages([
                     'question' => __('This question cannot be deleted while it is attached to an assessment.'),
@@ -208,7 +220,9 @@ class QuestionService
 
             foreach ($data['accepted_answers'] as $answer) {
                 $text = trim($answer['answer_text']);
-                $key = mb_strtolower($text);
+                $key = $answer['case_sensitive']
+                    ? 'S:'.$text
+                    : 'I:'.mb_strtolower($text);
 
                 if ($text === '' || isset($seen[$key])) {
                     continue;

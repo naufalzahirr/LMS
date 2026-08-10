@@ -35,6 +35,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, QuestionAcceptedAnswer> $acceptedAnswers
  * @property-read Collection<int, AssessmentQuestion> $assessmentQuestions
  * @property-read Collection<int, Assessment> $assessments
+ * @property-read Collection<int, AssessmentAttemptQuestion> $attemptQuestions
  */
 #[Fillable([
     'question_bank_id',
@@ -88,6 +89,12 @@ class Question extends Model
         return $this->belongsToMany(Assessment::class, 'assessment_questions')
             ->withPivot(['id', 'points', 'sort_order'])
             ->withTimestamps();
+    }
+
+    /** @return HasMany<AssessmentAttemptQuestion, $this> */
+    public function attemptQuestions(): HasMany
+    {
+        return $this->hasMany(AssessmentAttemptQuestion::class, 'source_question_id');
     }
 
     /** @return array<string, string> */

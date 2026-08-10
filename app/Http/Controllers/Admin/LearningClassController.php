@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
 use App\Enums\EnrollmentStatus;
@@ -124,10 +125,12 @@ class LearningClassController extends Controller
             'course.program:id,name',
             'tutors:id,name,email',
             'enrollments.student:id,name,email',
-            'assessmentAssignments.assessment' => fn ($query) => $query
-                ->with('competency:id,course_id,name')
-                ->withCount('assessmentQuestions')
-                ->withSum('assessmentQuestions as total_points', 'points'),
+            'assessmentAssignments' => fn ($query) => $query
+                ->withCount('attempts')
+                ->with(['assessment' => fn ($query) => $query
+                    ->with('competency:id,course_id,name')
+                    ->withCount('assessmentQuestions')
+                    ->withSum('assessmentQuestions as total_points', 'points')]),
         ]);
         $assignedTutorIds = $learningClass->tutors->pluck('id');
         $enrolledStudentIds = $learningClass->enrollments->pluck('student_id');
@@ -183,6 +186,7 @@ class LearningClassController extends Controller
                     'competency' => $assessment->competency->name,
                 ])->all(),
             'classAssessmentStatuses' => ClassAssessmentStatus::options(),
+            'assessmentFeedbackModes' => AssessmentFeedbackMode::options(),
         ]);
     }
 
@@ -286,6 +290,9 @@ class LearningClassController extends Controller
             'closes_at' => $assignment->closes_at?->format('Y-m-d\TH:i'),
             'max_attempts' => $assignment->max_attempts,
             'status' => $assignment->status->value,
+            'feedback_mode' => $assignment->feedback_mode->value,
+            'attempts_count' => $assignment->attempts_count ?? 0,
+            'attempt_url' => route('admin.class-assessment-attempts.index', [$assignment->learning_class_id, $assignment]),
         ];
     }
 }

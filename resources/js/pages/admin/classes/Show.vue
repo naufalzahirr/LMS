@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { index } from '@/routes/admin/classes';
 import type {
+    AssessmentFeedbackMode,
     ClassAssessmentAssignment,
     ClassAssessmentOption,
     ClassAssessmentStatus,
@@ -71,6 +72,7 @@ defineProps<{
     assessmentAssignments: ClassAssessmentAssignment[];
     assessmentOptions: ClassAssessmentOption[];
     classAssessmentStatuses: SelectOption<ClassAssessmentStatus>[];
+    assessmentFeedbackModes: SelectOption<AssessmentFeedbackMode>[];
 }>();
 
 defineOptions({
@@ -198,6 +200,7 @@ function unassignTutor(classId: number, tutor: DeliveryUserOption): void {
             :assignments="assessmentAssignments"
             :assessment-options="assessmentOptions"
             :statuses="classAssessmentStatuses"
+            :feedback-modes="assessmentFeedbackModes"
         />
         <div class="grid gap-6 xl:grid-cols-2">
             <Card>

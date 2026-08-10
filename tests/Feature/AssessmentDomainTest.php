@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AcademicStatus;
+use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
 use App\Enums\QuestionType;
@@ -17,6 +18,7 @@ use App\Services\AssessmentService;
 use App\Services\ClassAssessmentService;
 use App\Services\QuestionService;
 use Database\Seeders\AcademicSeeder;
+use Database\Seeders\AssessmentAttemptSeeder;
 use Database\Seeders\AssessmentSeeder;
 use Database\Seeders\DeliverySeeder;
 use Database\Seeders\RolePermissionSeeder;
@@ -68,7 +70,7 @@ class AssessmentDomainTest extends TestCase
             ],
         ]));
         $this->assertCount(0, $question->options);
-        $this->assertCount(1, $question->acceptedAnswers);
+        $this->assertCount(2, $question->acceptedAnswers);
         $this->assertNull($question->correct_boolean);
 
         $question = $service->update($question, $this->questionPayload($bank, $competency, QuestionType::TrueFalse, [
@@ -82,6 +84,36 @@ class AssessmentDomainTest extends TestCase
         $this->assertCount(0, $question->acceptedAnswers);
         $this->assertNull($question->correct_boolean);
         $this->assertTrue($service->hasValidAnswerKey($question));
+    }
+
+    public function test_short_answer_normalization_respects_case_sensitivity_and_trimming(): void
+    {
+        [$bank, $competency] = $this->questionContext();
+        $question = app(QuestionService::class)->create($this->questionPayload(
+            $bank,
+            $competency,
+            QuestionType::ShortAnswer,
+            [
+                'accepted_answers' => [
+                    ['answer_text' => ' Laravel ', 'case_sensitive' => false],
+                    ['answer_text' => 'laravel', 'case_sensitive' => false],
+                    ['answer_text' => ' Laravel ', 'case_sensitive' => true],
+                    ['answer_text' => 'laravel', 'case_sensitive' => true],
+                ],
+            ],
+        ));
+
+        $this->assertSame(
+            [
+                ['answer_text' => 'Laravel', 'case_sensitive' => false],
+                ['answer_text' => 'Laravel', 'case_sensitive' => true],
+                ['answer_text' => 'laravel', 'case_sensitive' => true],
+            ],
+            $question->acceptedAnswers
+                ->map->only(['answer_text', 'case_sensitive'])
+                ->values()
+                ->all(),
+        );
     }
 
     public function test_question_service_rejects_cross_course_competency_and_invalid_keys(): void
@@ -153,6 +185,7 @@ class AssessmentDomainTest extends TestCase
             'closes_at' => null,
             'max_attempts' => 2,
             'status' => ClassAssessmentStatus::Active,
+            'feedback_mode' => AssessmentFeedbackMode::AfterFinalAttempt,
         ];
 
         $assignment = $service->assign($class, $assessment, $payload);
@@ -186,6 +219,27 @@ class AssessmentDomainTest extends TestCase
         $this->assertSame(1, Assessment::query()->where('code', 'HTML-FORMATIVE-01')->count());
         $this->assertSame(5, AssessmentQuestion::query()->count());
         $this->assertDatabaseCount('learning_class_assessments', 1);
+    }
+
+    public function test_assessment_attempt_seeder_uses_workflows_and_is_idempotent(): void
+    {
+        $this->seed([
+            RolePermissionSeeder::class,
+            AcademicSeeder::class,
+            DeliverySeeder::class,
+            AssessmentSeeder::class,
+            AssessmentAttemptSeeder::class,
+            AssessmentSeeder::class,
+            AssessmentAttemptSeeder::class,
+        ]);
+
+        $this->assertDatabaseCount('assessment_attempts', 2);
+        $this->assertDatabaseHas('assessment_attempts', ['status' => 'graded']);
+        $this->assertDatabaseHas('assessment_attempts', ['status' => 'pending_grading']);
+        $this->assertSame(2, Assessment::query()->whereIn('code', [
+            'HTML-FORMATIVE-01',
+            'HTML-OBJECTIVE-01',
+        ])->count());
     }
 
     /** @return array{QuestionBank, Competency} */

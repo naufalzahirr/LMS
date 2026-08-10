@@ -14,6 +14,7 @@ use App\Models\LessonProgress;
 use App\Models\Module;
 use App\Models\User;
 use App\Services\LearningProgressQueryService;
+use App\Services\StudentAssessmentPayloadService;
 use App\Services\StudentLearningAccessService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ class LearningClassController extends Controller
     public function __construct(
         private readonly StudentLearningAccessService $access,
         private readonly LearningProgressQueryService $progressQuery,
+        private readonly StudentAssessmentPayloadService $assessmentPayloads,
     ) {}
 
     public function index(Request $request): Response
@@ -80,6 +82,8 @@ class LearningClassController extends Controller
                 'read_only' => ! $this->mayMutate($enrollment, $learningClass),
             ],
             'progress' => $summaries[$enrollment->id],
+            'assessments' => $this->assessmentPayloads->assignmentsForEnrollment($enrollment),
+            'assessments_url' => route('student.assessments.index', $learningClass),
             'competencies' => $learningClass->course->competencies->map(
                 fn (Competency $competency): array => [
                     'id' => $competency->id,

@@ -82,7 +82,7 @@ class Assessment extends Model
     public function learningClasses(): BelongsToMany
     {
         return $this->belongsToMany(LearningClass::class, 'learning_class_assessments')
-            ->withPivot(['id', 'opens_at', 'closes_at', 'max_attempts', 'status'])
+            ->withPivot(['id', 'opens_at', 'closes_at', 'max_attempts', 'status', 'feedback_mode'])
             ->withTimestamps();
     }
 

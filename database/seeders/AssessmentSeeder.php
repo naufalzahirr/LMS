@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\AcademicStatus;
+use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentPurpose;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
@@ -55,24 +56,32 @@ class AssessmentSeeder extends Seeder
                 $this->question($bank, $competency, 5, QuestionType::Essay, 'Explain why semantic HTML improves accessibility.'),
             ];
 
-            $assessment = Assessment::withTrashed()->updateOrCreate(
-                ['competency_id' => $competency->id, 'code' => 'HTML-FORMATIVE-01'],
-                [
-                    'title' => 'HTML Fundamentals Checkpoint',
-                    'description' => 'A development sample assessment covering core HTML concepts.',
-                    'purpose' => AssessmentPurpose::Formative,
-                    'status' => AssessmentStatus::Published,
-                    'instructions' => 'Answer every question using your understanding of semantic HTML.',
-                    'shuffle_questions' => false,
-                ],
-            );
+            $existingAssessment = Assessment::withTrashed()
+                ->where('competency_id', $competency->id)
+                ->where('code', 'HTML-FORMATIVE-01')
+                ->first();
+            $assessmentUsed = $existingAssessment?->classAssignments()->whereHas('attempts')->exists() === true;
+            $assessment = $assessmentUsed
+                ? $existingAssessment
+                : Assessment::withTrashed()->updateOrCreate(
+                    ['competency_id' => $competency->id, 'code' => 'HTML-FORMATIVE-01'],
+                    [
+                        'title' => 'HTML Fundamentals Checkpoint',
+                        'description' => 'A development sample assessment covering core HTML concepts.',
+                        'purpose' => AssessmentPurpose::Formative,
+                        'status' => AssessmentStatus::Published,
+                        'instructions' => 'Answer every question using your understanding of semantic HTML.',
+                        'shuffle_questions' => false,
+                    ]);
             $assessment->restore();
 
-            foreach ($questions as $index => $question) {
-                AssessmentQuestion::query()->updateOrCreate(
-                    ['assessment_id' => $assessment->id, 'question_id' => $question->id],
-                    ['points' => $question->default_points, 'sort_order' => $index],
-                );
+            if (! $assessmentUsed) {
+                foreach ($questions as $index => $question) {
+                    AssessmentQuestion::query()->updateOrCreate(
+                        ['assessment_id' => $assessment->id, 'question_id' => $question->id],
+                        ['points' => $question->default_points, 'sort_order' => $index],
+                    );
+                }
             }
 
             $learningClass = LearningClass::query()->where('code', 'FE-BATCH-A')->first();
@@ -85,6 +94,7 @@ class AssessmentSeeder extends Seeder
                         'closes_at' => null,
                         'max_attempts' => 2,
                         'status' => ClassAssessmentStatus::Active,
+                        'feedback_mode' => AssessmentFeedbackMode::AfterFinalAttempt,
                     ],
                 );
             }
@@ -102,6 +112,15 @@ class AssessmentSeeder extends Seeder
         string $prompt,
         array $answerKey = [],
     ): Question {
+        $existing = Question::withTrashed()
+            ->where('question_bank_id', $bank->id)
+            ->where('sort_order', $sortOrder)
+            ->first();
+
+        if ($existing?->attemptQuestions()->exists() === true) {
+            return $existing;
+        }
+
         $question = Question::withTrashed()->updateOrCreate(
             ['question_bank_id' => $bank->id, 'sort_order' => $sortOrder],
             [

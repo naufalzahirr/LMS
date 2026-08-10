@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
 use App\Models\Assessment;
@@ -12,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class ClassAssessmentService
 {
-    /** @param array{assessment_id: int, opens_at: string|null, closes_at: string|null, max_attempts: int, status: ClassAssessmentStatus} $data */
+    /** @param array{assessment_id: int, opens_at: string|null, closes_at: string|null, max_attempts: int, status: ClassAssessmentStatus, feedback_mode: AssessmentFeedbackMode} $data */
     public function assign(LearningClass $learningClass, Assessment $assessment, array $data): LearningClassAssessment
     {
         return DB::transaction(function () use ($learningClass, $assessment, $data): LearningClassAssessment {
@@ -34,7 +35,7 @@ class ClassAssessmentService
         });
     }
 
-    /** @param array{opens_at: string|null, closes_at: string|null, max_attempts: int, status: ClassAssessmentStatus} $data */
+    /** @param array{opens_at: string|null, closes_at: string|null, max_attempts: int, status: ClassAssessmentStatus, feedback_mode: AssessmentFeedbackMode} $data */
     public function update(LearningClassAssessment $assignment, array $data): LearningClassAssessment
     {
         return DB::transaction(function () use ($assignment, $data): LearningClassAssessment {
@@ -55,6 +56,14 @@ class ClassAssessmentService
 
     public function unassign(LearningClassAssessment $assignment): void
     {
-        DB::transaction(fn () => $assignment->delete());
+        DB::transaction(function () use ($assignment): void {
+            if ($assignment->attempts()->exists()) {
+                throw ValidationException::withMessages([
+                    'assessment_assignment' => __('This assessment assignment cannot be removed after students have started attempts. Set it inactive instead.'),
+                ]);
+            }
+
+            $assignment->delete();
+        });
     }
 }

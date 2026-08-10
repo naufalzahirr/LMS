@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { ArrowLeft, LibraryBig, NotebookText, Target } from '@lucide/vue';
+import {
+    ArrowLeft,
+    ClipboardCheck,
+    LibraryBig,
+    NotebookText,
+    Target,
+} from '@lucide/vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -150,6 +156,7 @@ defineOptions({
                                 <th class="px-5 py-3">Window</th>
                                 <th class="px-5 py-3">Attempts</th>
                                 <th class="px-5 py-3">Status</th>
+                                <th class="px-5 py-3 text-right">Review</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y">
@@ -186,6 +193,18 @@ defineOptions({
                                         "
                                         >{{ item.status }}</Badge
                                     >
+                                </td>
+                                <td class="px-5 py-4 text-right">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        as-child
+                                    >
+                                        <Link :href="item.attempt_url">
+                                            <ClipboardCheck />
+                                            {{ item.attempts_count }} attempts
+                                        </Link>
+                                    </Button>
                                 </td>
                             </tr>
                         </tbody>

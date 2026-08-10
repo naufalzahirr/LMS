@@ -30,6 +30,7 @@ class AssessmentService
     {
         return DB::transaction(function () use ($assessment, $data): Assessment {
             $this->ensureEditable($assessment);
+            $this->ensureUnused($assessment);
 
             if ($assessment->assessmentQuestions()->exists() && $assessment->competency_id !== $data['competency_id']) {
                 throw ValidationException::withMessages([
@@ -103,6 +104,8 @@ class AssessmentService
     public function delete(Assessment $assessment): void
     {
         DB::transaction(function () use ($assessment): void {
+            $this->ensureUnused($assessment);
+
             if ($assessment->status !== AssessmentStatus::Draft) {
                 throw ValidationException::withMessages([
                     'assessment' => __('Published or archived assessments cannot be deleted; archive them instead.'),
@@ -123,6 +126,7 @@ class AssessmentService
     {
         return DB::transaction(function () use ($assessment, $question, $points): AssessmentQuestion {
             $this->ensureEditable($assessment);
+            $this->ensureUnused($assessment);
 
             if ($question->competency_id !== $assessment->competency_id) {
                 throw ValidationException::withMessages([
@@ -158,6 +162,7 @@ class AssessmentService
     {
         DB::transaction(function () use ($assessment, $assessmentQuestion): void {
             $this->ensureEditable($assessment);
+            $this->ensureUnused($assessment);
             $this->ensureCompositionBelongsToAssessment($assessment, $assessmentQuestion);
             $assessmentQuestion->delete();
             $this->normalizeOrdering($assessment);
@@ -168,6 +173,7 @@ class AssessmentService
     {
         return DB::transaction(function () use ($assessment, $assessmentQuestion, $points): AssessmentQuestion {
             $this->ensureEditable($assessment);
+            $this->ensureUnused($assessment);
             $this->ensureCompositionBelongsToAssessment($assessment, $assessmentQuestion);
 
             if ((float) $points <= 0) {
@@ -184,6 +190,7 @@ class AssessmentService
     {
         DB::transaction(function () use ($assessment, $assessmentQuestion, $direction): void {
             $this->ensureEditable($assessment);
+            $this->ensureUnused($assessment);
             $this->ensureCompositionBelongsToAssessment($assessment, $assessmentQuestion);
             $ordered = $assessment->assessmentQuestions()->get();
             $index = $ordered->search(fn (AssessmentQuestion $item): bool => $item->is($assessmentQuestion));
@@ -205,6 +212,15 @@ class AssessmentService
     {
         if ($assessment->status === AssessmentStatus::Archived) {
             throw ValidationException::withMessages(['assessment' => __('Archived assessments are read-only.')]);
+        }
+    }
+
+    private function ensureUnused(Assessment $assessment): void
+    {
+        if ($assessment->classAssignments()->whereHas('attempts')->exists()) {
+            throw ValidationException::withMessages([
+                'assessment' => __('This assessment has already been used by students. Create a new assessment/version for structural changes.'),
+            ]);
         }
     }
 

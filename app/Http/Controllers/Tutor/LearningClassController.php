@@ -79,10 +79,12 @@ class LearningClassController extends Controller
             'course.program:id,name',
             'course.competencies.modules.lessons',
             'enrollments.student:id,name,email',
-            'assessmentAssignments.assessment' => fn ($query) => $query
-                ->with('competency:id,course_id,name')
-                ->withCount('assessmentQuestions')
-                ->withSum('assessmentQuestions as total_points', 'points'),
+            'assessmentAssignments' => fn ($query) => $query
+                ->withCount('attempts')
+                ->with(['assessment' => fn ($query) => $query
+                    ->with('competency:id,course_id,name')
+                    ->withCount('assessmentQuestions')
+                    ->withSum('assessmentQuestions as total_points', 'points')]),
         ]);
         $progress = $this->progressQuery->summariesForEnrollments($learningClass->enrollments);
 
@@ -128,6 +130,9 @@ class LearningClassController extends Controller
                     'closes_at' => $assignment->closes_at?->toDateTimeString(),
                     'max_attempts' => $assignment->max_attempts,
                     'status' => $assignment->status->value,
+                    'feedback_mode' => $assignment->feedback_mode->value,
+                    'attempts_count' => $assignment->attempts_count ?? 0,
+                    'attempt_url' => route('tutor.class-assessment-attempts.index', [$learningClass, $assignment]),
                 ],
             )->values()->all(),
         ]);

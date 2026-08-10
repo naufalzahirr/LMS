@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
 use App\Models\Assessment;
@@ -37,6 +38,7 @@ class LearningClassAssessmentFactory extends Factory
             'closes_at' => null,
             'max_attempts' => 1,
             'status' => ClassAssessmentStatus::Active,
+            'feedback_mode' => AssessmentFeedbackMode::AfterFinalAttempt,
         ];
     }
 }

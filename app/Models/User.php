@@ -35,6 +35,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property-read Collection<int, LearningClass> $teachingClasses
  * @property-read Collection<int, User> $children
  * @property-read Collection<int, User> $parents
+ * @property-read Collection<int, AssessmentAnswer> $gradedAssessmentAnswers
  */
 #[Fillable(['name', 'email', 'email_verified_at', 'password'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -88,6 +89,12 @@ class User extends Authenticatable implements PasskeyUser
         return $this->belongsToMany(User::class, 'parent_student_relationships', 'student_id', 'parent_id')
             ->withPivot(['id', 'relationship_type'])
             ->withTimestamps();
+    }
+
+    /** @return HasMany<AssessmentAnswer, $this> */
+    public function gradedAssessmentAnswers(): HasMany
+    {
+        return $this->hasMany(AssessmentAnswer::class, 'graded_by');
     }
 
     /**

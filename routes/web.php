@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AssessmentAttemptController as AdminAssessmentAttemptController;
 use App\Http\Controllers\Admin\AssessmentController;
 use App\Http\Controllers\Admin\AssessmentQuestionController;
 use App\Http\Controllers\Admin\ClassAssessmentController;
@@ -15,9 +16,13 @@ use App\Http\Controllers\Admin\QuestionBankController;
 use App\Http\Controllers\Admin\QuestionController;
 use App\Http\Controllers\Admin\TutorAssignmentController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Student\AssessmentAnswerController as StudentAssessmentAnswerController;
+use App\Http\Controllers\Student\AssessmentAttemptController as StudentAssessmentAttemptController;
+use App\Http\Controllers\Student\AssessmentController as StudentAssessmentController;
 use App\Http\Controllers\Student\LearningClassController as StudentLearningClassController;
 use App\Http\Controllers\Student\LessonController as StudentLessonController;
 use App\Http\Controllers\Student\LessonProgressController as StudentLessonProgressController;
+use App\Http\Controllers\Tutor\AssessmentAttemptController as TutorAssessmentAttemptController;
 use App\Http\Controllers\Tutor\LearningClassController as TutorLearningClassController;
 use Illuminate\Support\Facades\Route;
 
@@ -87,6 +92,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('admin.classes.assessments.update');
     Route::delete('admin/classes/{learningClass}/assessments/{assignment}', [ClassAssessmentController::class, 'destroy'])
         ->name('admin.classes.assessments.destroy');
+    Route::get('admin/classes/{learningClass}/assessments/{assignment}/attempts', [AdminAssessmentAttemptController::class, 'index'])
+        ->name('admin.class-assessment-attempts.index');
+    Route::get('admin/classes/{learningClass}/assessments/{assignment}/attempts/{attempt}/grade', [AdminAssessmentAttemptController::class, 'edit'])
+        ->name('admin.class-assessment-attempts.edit');
+    Route::patch('admin/classes/{learningClass}/assessments/{assignment}/attempts/{attempt}', [AdminAssessmentAttemptController::class, 'update'])
+        ->name('admin.class-assessment-attempts.update');
     Route::resource('admin/classes', LearningClassController::class)
         ->parameters(['classes' => 'learningClass'])
         ->names('admin.classes');
@@ -106,11 +117,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('tutor.classes.index');
     Route::get('tutor/classes/{learningClass}', [TutorLearningClassController::class, 'show'])
         ->name('tutor.classes.show');
+    Route::get('tutor/classes/{learningClass}/assessments/{assignment}/attempts', [TutorAssessmentAttemptController::class, 'index'])
+        ->name('tutor.class-assessment-attempts.index');
+    Route::get('tutor/classes/{learningClass}/assessments/{assignment}/attempts/{attempt}/grade', [TutorAssessmentAttemptController::class, 'edit'])
+        ->name('tutor.class-assessment-attempts.edit');
+    Route::patch('tutor/classes/{learningClass}/assessments/{assignment}/attempts/{attempt}', [TutorAssessmentAttemptController::class, 'update'])
+        ->name('tutor.class-assessment-attempts.update');
 
     Route::get('student/classes', [StudentLearningClassController::class, 'index'])
         ->name('student.classes.index');
     Route::get('student/classes/{learningClass}', [StudentLearningClassController::class, 'show'])
         ->name('student.classes.show');
+    Route::get('student/classes/{learningClass}/assessments', [StudentAssessmentController::class, 'index'])
+        ->name('student.assessments.index');
+    Route::get('student/classes/{learningClass}/assessments/{assignment}', [StudentAssessmentController::class, 'show'])
+        ->name('student.assessments.show');
+    Route::post('student/classes/{learningClass}/assessments/{assignment}/start', [StudentAssessmentController::class, 'start'])
+        ->name('student.assessments.start');
+    Route::get('student/assessment-attempts/{attempt}', [StudentAssessmentAttemptController::class, 'show'])
+        ->name('student.assessment-attempts.show');
+    Route::patch('student/assessment-attempts/{attempt}/questions/{attemptQuestion}/answer', [StudentAssessmentAnswerController::class, 'update'])
+        ->name('student.assessment-answers.update');
+    Route::post('student/assessment-attempts/{attempt}/submit', [StudentAssessmentAttemptController::class, 'submit'])
+        ->name('student.assessment-attempts.submit');
+    Route::get('student/assessment-attempts/{attempt}/result', [StudentAssessmentAttemptController::class, 'result'])
+        ->name('student.assessment-attempts.result');
     Route::get('student/classes/{learningClass}/lessons/{lesson}', [StudentLessonController::class, 'show'])
         ->name('student.lessons.show');
     Route::get('student/classes/{learningClass}/lessons/{lesson}/file', [StudentLessonController::class, 'file'])
