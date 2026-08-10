@@ -9,6 +9,7 @@ use App\Models\LearningClass;
 use App\Models\Program;
 use App\Models\User;
 use App\Services\ProgressReportQueryService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,6 +28,7 @@ class ProgressReportController extends Controller
             'learning_class_id' => $request->integer('learning_class_id'),
             'student_id' => $request->integer('student_id'),
             'mastery_status' => $request->string('mastery_status')->toString(),
+            'page' => max(1, $request->integer('page', 1)),
         ];
 
         if (! in_array($filters['mastery_status'], $this->masteryStatuses(), true)) {
@@ -37,14 +39,38 @@ class ProgressReportController extends Controller
             'report' => $this->reports->overview($filters),
             'filters' => array_map(
                 fn (int|string $value): string => $value === 0 ? '' : (string) $value,
-                $filters,
+                array_diff_key($filters, ['page' => true]),
             ),
             'programs' => Program::query()->orderBy('name')->get(['id', 'name']),
             'courses' => Course::query()->with('program:id,name')->orderBy('name')->get(['id', 'program_id', 'name']),
             'classes' => LearningClass::query()->with('course:id,name')->orderBy('name')->get(['id', 'course_id', 'name']),
-            'students' => User::role('Student')->orderBy('name')->get(['id', 'name', 'email']),
+            'students' => $filters['student_id'] > 0
+                ? User::role('Student')->whereKey($filters['student_id'])->get(['id', 'name', 'email'])
+                : [],
+            'studentSearchUrl' => route('admin.reports.students'),
             'masteryStatuses' => $this->masteryStatuses(),
         ]);
+    }
+
+    public function students(Request $request): JsonResponse
+    {
+        $this->authorize('viewAllProgressReports', LearningClass::class);
+        $search = trim($request->string('search')->toString());
+
+        if (mb_strlen($search) < 2) {
+            return response()->json(['students' => []]);
+        }
+
+        $students = User::role('Student')
+            ->where(function ($query) use ($search): void {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            })
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'email']);
+
+        return response()->json(['students' => $students]);
     }
 
     public function show(LearningClass $learningClass): Response

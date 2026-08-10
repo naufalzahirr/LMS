@@ -11,9 +11,12 @@ use App\Models\Enrollment;
 use App\Models\ParentStudentRelationship;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class ParentProgressQueryService
 {
+    private const RECENT_ATTEMPTS_PER_ENROLLMENT = 10;
+
     public function __construct(
         private readonly LearningProgressQueryService $learningProgress,
         private readonly MasteryProgressQueryService $masteryProgress,
@@ -68,13 +71,18 @@ class ParentProgressQueryService
             ->get();
         $lessonSummaries = $this->learningProgress->summariesForEnrollments($enrollments);
         $mastery = $this->masteryProgress->competenciesForEnrollments($enrollments);
-        $attempts = AssessmentAttempt::query()
+        $rankedAttempts = AssessmentAttempt::query()
             ->whereIn('enrollment_id', $enrollments->modelKeys())
+            ->select('assessment_attempts.*')
+            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY enrollment_id ORDER BY COALESCE(submitted_at, created_at) DESC, attempt_number DESC, id DESC) AS attempt_rank');
+        $attempts = AssessmentAttempt::query()
+            ->fromSub($rankedAttempts, 'assessment_attempts')
+            ->where('attempt_rank', '<=', self::RECENT_ATTEMPTS_PER_ENROLLMENT)
             ->with([
                 'classAssessment:id,assessment_id',
                 'classAssessment.assessment:id,title,purpose',
             ])
-            ->orderByDesc('submitted_at')
+            ->orderByDesc(DB::raw('COALESCE(submitted_at, created_at)'))
             ->orderByDesc('attempt_number')
             ->get()
             ->groupBy('enrollment_id');

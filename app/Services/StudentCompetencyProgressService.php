@@ -18,6 +18,7 @@ class StudentCompetencyProgressService
     public function refresh(Enrollment $enrollment, Competency $competency): StudentCompetencyProgress
     {
         return DB::transaction(function () use ($enrollment, $competency): StudentCompetencyProgress {
+            Enrollment::query()->whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
             $progress = StudentCompetencyProgress::query()->firstOrNew([
                 'enrollment_id' => $enrollment->id,
                 'competency_id' => $competency->id,

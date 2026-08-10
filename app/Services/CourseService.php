@@ -23,6 +23,13 @@ class CourseService
     public function update(Course $course, array $data): Course
     {
         return DB::transaction(function () use ($course, $data): Course {
+            if ($course->program_id !== $data['program_id']
+                && ($course->competencies()->exists() || $course->learningClasses()->exists() || $course->questionBanks()->exists())) {
+                throw ValidationException::withMessages([
+                    'program_id' => __('A course with academic or delivery records cannot be moved to another program.'),
+                ]);
+            }
+
             $course->update($data);
 
             return $course->refresh();

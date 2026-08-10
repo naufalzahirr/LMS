@@ -7,6 +7,7 @@ use App\Enums\AssessmentAttemptStatus;
 use App\Enums\RemedialAssignmentStatus;
 use App\Enums\StudentCompetencyStatus;
 use App\Models\AssessmentAttempt;
+use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\MasteryRule;
 use App\Models\RemedialAssignment;
@@ -24,6 +25,7 @@ class RemedialAssignmentService
         AssessmentAttempt $attempt,
     ): RemedialAssignment {
         return DB::transaction(function () use ($rule, $attempt): RemedialAssignment {
+            Enrollment::query()->whereKey($attempt->enrollment_id)->lockForUpdate()->firstOrFail();
             $existing = RemedialAssignment::query()
                 ->where('enrollment_id', $attempt->enrollment_id)
                 ->where('competency_id', $rule->competency_id)
@@ -67,14 +69,17 @@ class RemedialAssignmentService
         }
 
         return DB::transaction(function () use ($assignment, $item): RemedialAssignment {
+            Enrollment::query()->whereKey($assignment->enrollment_id)->lockForUpdate()->firstOrFail();
             $locked = RemedialAssignment::query()->whereKey($assignment->id)->lockForUpdate()->firstOrFail();
             $this->ensureAssigned($locked);
 
-            if ($item->remedial_assignment_id !== $locked->id) {
+            $lockedItem = RemedialAssignmentLesson::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedItem->remedial_assignment_id !== $locked->id) {
                 throw ValidationException::withMessages(['remedial' => __('This lesson is not part of the remedial plan.')]);
             }
 
-            $item->update(['completed_at' => now()]);
+            $lockedItem->update(['completed_at' => now()]);
             $remaining = $locked->lessons()->whereNull('completed_at')->count();
 
             if ($locked->lessons()->exists() && $remaining === 0) {
@@ -90,24 +95,26 @@ class RemedialAssignmentService
         $this->authorizeManager($manager, $assignment);
 
         return DB::transaction(function () use ($assignment, $lesson): RemedialAssignmentLesson {
-            $this->ensureAssigned($assignment);
+            Enrollment::query()->whereKey($assignment->enrollment_id)->lockForUpdate()->firstOrFail();
+            $locked = RemedialAssignment::query()->whereKey($assignment->id)->lockForUpdate()->firstOrFail();
+            $this->ensureAssigned($locked);
             $lesson->loadMissing('module:id,competency_id,status');
 
             if ($lesson->status !== AcademicStatus::Active
                 || $lesson->module->status !== AcademicStatus::Active
-                || $lesson->module->competency_id !== $assignment->competency_id) {
+                || $lesson->module->competency_id !== $locked->competency_id) {
                 throw ValidationException::withMessages([
                     'lesson_id' => __('Remedial lessons must belong to the same competency.'),
                 ]);
             }
 
-            if ($assignment->lessons()->where('lesson_id', $lesson->id)->exists()) {
+            if ($locked->lessons()->where('lesson_id', $lesson->id)->exists()) {
                 throw ValidationException::withMessages(['lesson_id' => __('This lesson is already assigned.')]);
             }
 
-            return $assignment->lessons()->create([
+            return $locked->lessons()->create([
                 'lesson_id' => $lesson->id,
-                'sort_order' => ((int) $assignment->lessons()->max('sort_order')) + 1,
+                'sort_order' => ((int) $locked->lessons()->max('sort_order')) + 1,
             ]);
         });
     }
@@ -120,22 +127,31 @@ class RemedialAssignmentService
         $this->authorizeManager($manager, $assignment);
 
         DB::transaction(function () use ($assignment, $item): void {
-            $this->ensureAssigned($assignment);
+            Enrollment::query()->whereKey($assignment->enrollment_id)->lockForUpdate()->firstOrFail();
+            $locked = RemedialAssignment::query()->whereKey($assignment->id)->lockForUpdate()->firstOrFail();
+            $this->ensureAssigned($locked);
+            $lockedItem = RemedialAssignmentLesson::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
 
-            if ($item->remedial_assignment_id !== $assignment->id) {
+            if ($lockedItem->remedial_assignment_id !== $locked->id) {
                 throw ValidationException::withMessages(['remedial' => __('This lesson is not part of the remedial plan.')]);
             }
 
-            $item->delete();
+            $lockedItem->delete();
         });
     }
 
     public function updateNotes(User $manager, RemedialAssignment $assignment, ?string $notes): RemedialAssignment
     {
         $this->authorizeManager($manager, $assignment);
-        $assignment->update(['notes' => $notes]);
 
-        return $assignment->refresh();
+        return DB::transaction(function () use ($assignment, $notes): RemedialAssignment {
+            Enrollment::query()->whereKey($assignment->enrollment_id)->lockForUpdate()->firstOrFail();
+            $locked = RemedialAssignment::query()->whereKey($assignment->id)->lockForUpdate()->firstOrFail();
+            $this->ensureAssigned($locked);
+            $locked->update(['notes' => $notes]);
+
+            return $locked->refresh();
+        });
     }
 
     public function completeIntervention(User $manager, RemedialAssignment $assignment): RemedialAssignment
@@ -143,15 +159,17 @@ class RemedialAssignmentService
         $this->authorizeManager($manager, $assignment);
 
         return DB::transaction(function () use ($assignment): RemedialAssignment {
-            $this->ensureAssigned($assignment);
+            Enrollment::query()->whereKey($assignment->enrollment_id)->lockForUpdate()->firstOrFail();
+            $locked = RemedialAssignment::query()->whereKey($assignment->id)->lockForUpdate()->firstOrFail();
+            $this->ensureAssigned($locked);
 
-            if ($assignment->lessons()->whereNull('completed_at')->exists()) {
+            if ($locked->lessons()->whereNull('completed_at')->exists()) {
                 throw ValidationException::withMessages([
                     'remedial' => __('Complete every remedial lesson before closing this intervention.'),
                 ]);
             }
 
-            return $this->complete($assignment);
+            return $this->complete($locked);
         });
     }
 

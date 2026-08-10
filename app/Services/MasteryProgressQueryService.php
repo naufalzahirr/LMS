@@ -98,9 +98,13 @@ class MasteryProgressQueryService
             ->keyBy(fn (RemedialAssignment $item): string => "{$item->enrollment_id}:{$item->competency_id}");
         $attemptCounts = AssessmentAttempt::query()
             ->whereIn('enrollment_id', $enrollmentIds)
-            ->get(['id', 'enrollment_id', 'learning_class_assessment_id'])
-            ->groupBy(fn (AssessmentAttempt $attempt): string => "{$attempt->enrollment_id}:{$attempt->learning_class_assessment_id}")
-            ->map(fn (Collection $items): int => $items->count());
+            ->select(['enrollment_id', 'learning_class_assessment_id'])
+            ->selectRaw('COUNT(*) AS attempt_count')
+            ->groupBy(['enrollment_id', 'learning_class_assessment_id'])
+            ->get()
+            ->mapWithKeys(fn (AssessmentAttempt $attempt): array => [
+                "{$attempt->enrollment_id}:{$attempt->learning_class_assessment_id}" => (int) $attempt->getAttribute('attempt_count'),
+            ]);
         $mapped = [];
 
         foreach ($enrollments as $enrollment) {

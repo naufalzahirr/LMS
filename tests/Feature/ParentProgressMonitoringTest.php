@@ -157,6 +157,28 @@ class ParentProgressMonitoringTest extends TestCase
         ]);
     }
 
+    public function test_parent_assessment_history_is_limited_to_ten_recent_attempts_per_enrollment(): void
+    {
+        $context = $this->progressContext();
+
+        foreach (range(3, 14) as $attemptNumber) {
+            AssessmentAttempt::factory()->graded()->create([
+                'learning_class_assessment_id' => $context['assignment']->id,
+                'enrollment_id' => $context['enrollment']->id,
+                'attempt_number' => $attemptNumber,
+                'submitted_at' => now()->addMinutes($attemptNumber),
+            ]);
+        }
+
+        $this->actingAs($context['parent'])
+            ->get(route('parent.dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('children.0.current_classes.0.assessments', 10)
+                ->where('children.0.current_classes.0.assessments.0.attempt', 14)
+                ->where('children.0.current_classes.0.assessments.9.attempt', 5));
+    }
+
     /** @return array<string, mixed> */
     private function progressContext(): array
     {

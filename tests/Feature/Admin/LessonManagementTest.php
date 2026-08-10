@@ -6,6 +6,7 @@ use App\Enums\AcademicStatus;
 use App\Enums\LessonType;
 use App\Models\Competency;
 use App\Models\Course;
+use App\Models\LearningClass;
 use App\Models\Lesson;
 use App\Models\Module;
 use App\Models\Program;
@@ -51,7 +52,7 @@ class LessonManagementTest extends TestCase
                 ->where('lesson.title', 'Readable HTML'));
     }
 
-    public function test_tutor_can_view_lessons_read_only(): void
+    public function test_tutor_without_an_active_course_assignment_cannot_view_lesson_content(): void
     {
         $tutor = $this->userWithRole('Tutor');
         $lesson = Lesson::factory()->create();
@@ -59,12 +60,13 @@ class LessonManagementTest extends TestCase
         $this->actingAs($tutor)
             ->get(route('admin.lessons.index'))
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->where('canManage', false));
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('lessons.data', 0)
+                ->where('canManage', false));
 
         $this->actingAs($tutor)
             ->get(route('admin.lessons.show', $lesson))
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->where('canManage', false));
+            ->assertForbidden();
 
         $this->actingAs($tutor)
             ->post(route('admin.lessons.store'), $this->textPayload())
@@ -346,11 +348,20 @@ class LessonManagementTest extends TestCase
         $path = $lesson->managedFilePath();
         Storage::disk('local')->put($path, 'PDF contents');
 
-        foreach (['Admin', 'Tutor'] as $role) {
-            $this->actingAs($this->userWithRole($role))
-                ->get(route('admin.lessons.file', $lesson))
-                ->assertOk();
-        }
+        $this->actingAs($this->userWithRole('Admin'))
+            ->get(route('admin.lessons.file', $lesson))
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'max-age=0, must-revalidate, no-cache, no-store, private')
+            ->assertHeader('Content-Security-Policy', "default-src 'none'; sandbox")
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        $tutor = $this->userWithRole('Tutor');
+        $learningClass = LearningClass::factory()->for($lesson->module->competency->course)->create();
+        $learningClass->tutors()->attach($tutor);
+
+        $this->actingAs($tutor)
+            ->get(route('admin.lessons.file', $lesson))
+            ->assertOk();
     }
 
     public function test_unauthorized_users_cannot_access_lesson_files(): void

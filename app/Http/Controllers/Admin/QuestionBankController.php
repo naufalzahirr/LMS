@@ -10,6 +10,7 @@ use App\Models\QuestionBank;
 use App\Models\User;
 use App\Services\AssessmentAuthoringOptionsService;
 use App\Services\QuestionBankService;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -20,6 +21,7 @@ class QuestionBankController extends Controller
     public function __construct(
         private readonly QuestionBankService $service,
         private readonly AssessmentAuthoringOptionsService $options,
+        private readonly TutorCourseAccessService $tutorAccess,
     ) {}
 
     public function index(Request $request): Response
@@ -30,6 +32,11 @@ class QuestionBankController extends Controller
         $courseId = $request->integer('course_id');
         $status = AcademicStatus::tryFrom($request->string('status')->toString());
         $query = QuestionBank::query()->with('course.program:id,name')->withCount('questions');
+        $user = $this->user($request);
+
+        if ($user->hasRole('Tutor')) {
+            $query->whereIn('course_id', $this->tutorAccess->manageableCourseIds($user));
+        }
 
         if ($search !== '') {
             $query->where(fn ($query) => $query->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
@@ -45,8 +52,7 @@ class QuestionBankController extends Controller
         }
 
         $paginator = $query->orderBy('name')->paginate(10)->withQueryString();
-        $user = $this->user($request);
-        $authoringOptions = $this->options->forUser($user, false);
+        $authoringOptions = $this->options->forUser($user);
 
         return Inertia::render('admin/question-banks/Index', [
             'questionBanks' => [

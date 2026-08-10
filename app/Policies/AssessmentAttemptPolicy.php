@@ -9,15 +9,8 @@ class AssessmentAttemptPolicy
 {
     public function view(User $user, AssessmentAttempt $attempt): bool
     {
-        if ($user->hasRole('Admin')) {
-            return true;
-        }
-
-        if ($user->hasRole('Student')) {
-            return $attempt->enrollment()->where('student_id', $user->id)->exists();
-        }
-
-        return $this->tutorAssignedToAttemptClass($user, $attempt);
+        return $user->hasRole('Student')
+            && $attempt->enrollment()->where('student_id', $user->id)->exists();
     }
 
     public function update(User $user, AssessmentAttempt $attempt): bool
@@ -33,12 +26,13 @@ class AssessmentAttemptPolicy
 
     public function grade(User $user, AssessmentAttempt $attempt): bool
     {
-        return $user->hasRole('Admin') || $this->tutorAssignedToAttemptClass($user, $attempt);
+        return ($user->hasRole('Admin') && $user->hasPermissionTo('manage-assessments'))
+            || $this->tutorAssignedToAttemptClass($user, $attempt);
     }
 
     private function tutorAssignedToAttemptClass(User $user, AssessmentAttempt $attempt): bool
     {
-        if (! $user->hasRole('Tutor')) {
+        if (! $user->hasRole('Tutor') || ! $user->hasPermissionTo('view-class-progress')) {
             return false;
         }
 

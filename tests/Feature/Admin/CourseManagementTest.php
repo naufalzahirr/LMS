@@ -135,6 +135,24 @@ class CourseManagementTest extends TestCase
         $this->assertSame(7, $course->sort_order);
     }
 
+    public function test_course_with_academic_records_cannot_move_to_another_program(): void
+    {
+        $admin = $this->userWithRole('Admin');
+        $course = Course::factory()->create();
+        Competency::factory()->for($course)->create();
+        $newProgram = Program::factory()->create();
+
+        $this->actingAs($admin)
+            ->put(route('admin.courses.update', $course), $this->validPayload([
+                'program_id' => $newProgram->id,
+                'slug' => $course->slug,
+                'code' => $course->code,
+            ]))
+            ->assertSessionHasErrors('program_id');
+
+        $this->assertNotSame($newProgram->id, $course->fresh()->program_id);
+    }
+
     public function test_admin_can_soft_delete_an_empty_course(): void
     {
         $admin = $this->userWithRole('Admin');

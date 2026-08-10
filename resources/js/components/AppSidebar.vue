@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
-    BookOpen,
     BookOpenCheck,
     ChartNoAxesCombined,
     CircleHelp,
@@ -17,7 +16,6 @@ import {
 } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
-import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import {
@@ -98,47 +96,83 @@ const mainNavItems = computed<NavItem[]>(() => {
 });
 
 const academicNavItems = computed<NavItem[]>(() => {
-    if (
-        !page.props.auth.roles.some((role) => ['Admin', 'Tutor'].includes(role))
-    ) {
+    const tutorCanAuthor =
+        page.props.auth.roles.includes('Tutor') &&
+        page.props.auth.has_active_teaching_course;
+
+    if (!page.props.auth.roles.includes('Admin') && !tutorCanAuthor) {
         return [];
     }
 
-    const items: NavItem[] = [
-        {
+    const items: NavItem[] = [];
+
+    if (
+        tutorCanAuthor ||
+        page.props.auth.permissions.includes('manage-programs')
+    ) {
+        items.push({
             title: 'Programs',
             href: programsIndex(),
             icon: GraduationCap,
-        },
-        {
+        });
+    }
+
+    if (
+        tutorCanAuthor ||
+        page.props.auth.permissions.includes('manage-courses')
+    ) {
+        items.push({
             title: 'Courses',
             href: coursesIndex(),
             icon: BookOpenCheck,
-        },
-        {
+        });
+    }
+
+    if (
+        tutorCanAuthor ||
+        page.props.auth.permissions.includes('manage-competencies')
+    ) {
+        items.push({
             title: 'Competencies',
             href: competenciesIndex(),
             icon: Target,
-        },
-        {
+        });
+    }
+
+    if (
+        tutorCanAuthor ||
+        page.props.auth.permissions.includes('manage-modules')
+    ) {
+        items.push({
             title: 'Modules',
             href: modulesIndex(),
             icon: LibraryBig,
-        },
-        {
+        });
+    }
+
+    if (
+        tutorCanAuthor ||
+        page.props.auth.permissions.includes('manage-lessons')
+    ) {
+        items.push({
             title: 'Lessons',
             href: lessonsIndex(),
             icon: NotebookText,
-        },
-    ];
+        });
+    }
 
     return items;
 });
 
 const assessmentNavItems = computed<NavItem[]>(() => {
-    if (
-        !page.props.auth.roles.some((role) => ['Admin', 'Tutor'].includes(role))
-    ) {
+    const tutorCanAuthor =
+        page.props.auth.roles.includes('Tutor') &&
+        page.props.auth.has_active_teaching_course;
+    const adminCanAuthor =
+        page.props.auth.roles.includes('Admin') &&
+        page.props.auth.permissions.includes('manage-assessments');
+
+    if (!tutorCanAuthor && !adminCanAuthor) {
         return [];
     }
 
@@ -154,32 +188,26 @@ const assessmentNavItems = computed<NavItem[]>(() => {
 });
 
 const deliveryNavItems = computed<NavItem[]>(() => {
+    const isAdmin = page.props.auth.roles.includes('Admin');
+    const isTutor = page.props.auth.roles.includes('Tutor');
+
     if (
-        !page.props.auth.roles.some((role) => ['Admin', 'Tutor'].includes(role))
+        (!isAdmin && !isTutor) ||
+        (isAdmin && !page.props.auth.permissions.includes('manage-classes')) ||
+        (isTutor &&
+            !page.props.auth.permissions.includes('view-class-progress'))
     ) {
         return [];
     }
 
     return [
         {
-            title: page.props.auth.roles.includes('Admin')
-                ? 'Classes'
-                : 'My classes',
-            href: page.props.auth.roles.includes('Admin')
-                ? adminClassesIndex()
-                : tutorClassesIndex(),
+            title: isAdmin ? 'Classes' : 'My classes',
+            href: isAdmin ? adminClassesIndex() : tutorClassesIndex(),
             icon: UsersRound,
         },
     ];
 });
-
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Laravel Documentation',
-        href: 'https://laravel.com/docs/13.x',
-        icon: BookOpen,
-    },
-];
 </script>
 
 <template>
@@ -216,7 +244,6 @@ const footerNavItems: NavItem[] = [
         </SidebarContent>
 
         <SidebarFooter>
-            <NavFooter :items="footerNavItems" />
             <NavUser />
         </SidebarFooter>
     </Sidebar>

@@ -29,7 +29,7 @@ class AssessmentAttemptController extends Controller
         LearningClassAssessment $assignment,
     ): Response {
         $this->ensureAssignment($learningClass, $assignment);
-        $this->authorize('view', $assignment);
+        $this->authorize('reviewAttempts', $assignment);
         $status = $this->reviewStatus($request);
 
         return Inertia::render('assessment-attempts/Index', [

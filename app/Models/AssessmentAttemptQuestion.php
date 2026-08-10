@@ -39,7 +39,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'sort_order',
     'correct_boolean',
 ])]
-#[Hidden(['correct_boolean'])]
+#[Hidden(['correct_boolean', 'explanation'])]
 class AssessmentAttemptQuestion extends Model
 {
     /** @use HasFactory<AssessmentAttemptQuestionFactory> */

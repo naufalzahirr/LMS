@@ -1,11 +1,12 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/vue-starter-kit",
+    "name": "mastery-learning-center/application",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "A mastery-based learning, assessment, remediation, and progress reporting platform.",
     "keywords": [
         "laravel",
-        "framework"
+        "education",
+        "mastery-learning"
     ],
     "license": "MIT",
     "require": {

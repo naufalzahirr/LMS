@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Settings;
 
+use App\Models\Enrollment;
+use App\Models\LearningClass;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -94,6 +96,22 @@ class ProfileUpdateTest extends TestCase
             ->assertSessionHasErrors('password')
             ->assertRedirect(route('profile.edit'));
 
+        $this->assertNotNull($user->fresh());
+    }
+
+    public function test_user_cannot_self_delete_when_learning_history_references_their_account(): void
+    {
+        $user = User::factory()->create();
+        Enrollment::factory()
+            ->for(LearningClass::factory())
+            ->for($user, 'student')
+            ->create();
+
+        $this->actingAs($user)
+            ->delete(route('profile.destroy'), ['password' => 'password'])
+            ->assertSessionHasErrors('user');
+
+        $this->assertAuthenticatedAs($user);
         $this->assertNotNull($user->fresh());
     }
 }

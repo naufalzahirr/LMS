@@ -13,12 +13,12 @@ class AssessmentPolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['Admin', 'Tutor']);
+        return $this->admin($user) || $user->hasRole('Tutor');
     }
 
     public function view(User $user, Assessment $assessment): bool
     {
-        return $this->viewAny($user);
+        return $this->admin($user) || $this->access->canManageAssessment($user, $assessment);
     }
 
     public function create(User $user, ?Competency $competency = null): bool

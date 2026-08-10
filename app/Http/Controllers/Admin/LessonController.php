@@ -42,6 +42,13 @@ class LessonController extends Controller
         $lessonType = LessonType::tryFrom($request->string('lesson_type')->toString());
         $status = AcademicStatus::tryFrom($request->string('status')->toString());
         $query = Lesson::query()->with('module.competency.course.program:id,name');
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $manageableCourseIds = $this->tutorCourseAccess->manageableCourseIds($user);
+
+        if ($user->hasRole('Tutor')) {
+            $query->whereHas('module.competency', fn ($query) => $query->whereIn('course_id', $manageableCourseIds));
+        }
 
         if ($search !== '') {
             $query->where('title', 'like', "%{$search}%");
@@ -87,10 +94,7 @@ class LessonController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $user = $request->user();
-        abort_unless($user instanceof User, 401);
         $adminCanManage = $user->hasRole('Admin') && $user->hasPermissionTo('manage-lessons');
-        $manageableCourseIds = $this->tutorCourseAccess->manageableCourseIds($user);
 
         return Inertia::render('admin/lessons/Index', [
             'lessons' => [
@@ -121,7 +125,7 @@ class LessonController extends Controller
                 'lesson_type' => $lessonType->value ?? '',
                 'status' => $status->value ?? '',
             ],
-            ...$this->hierarchyOptions($user),
+            ...$this->hierarchyOptions($user, true),
             'lessonTypes' => LessonType::options(),
             'statuses' => AcademicStatus::options(),
             'canManage' => $adminCanManage || $manageableCourseIds !== [],
@@ -239,9 +243,15 @@ class LessonController extends Controller
         $extension = pathinfo($path, PATHINFO_EXTENSION);
         $filename = Str::slug($lesson->title).($extension !== '' ? ".{$extension}" : '');
 
+        $headers = [
+            'Cache-Control' => 'private, no-store, no-cache, must-revalidate, max-age=0',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+            'X-Content-Type-Options' => 'nosniff',
+        ];
+
         return $request->boolean('download')
-            ? $disk->download($path, $filename)
-            : $disk->response($path, $filename);
+            ? $disk->download($path, $filename, $headers)
+            : $disk->response($path, $filename, $headers);
     }
 
     /**

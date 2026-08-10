@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
+use App\Services\UserService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use Inertia\Response;
 
 class ProfileController extends Controller
 {
+    public function __construct(private readonly UserService $users) {}
+
     /**
      * Show the user's profile settings page.
      */
@@ -50,9 +53,9 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        Auth::logout();
+        $this->users->delete($user);
 
-        $user->delete();
+        Auth::guard('web')->logoutCurrentDevice();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

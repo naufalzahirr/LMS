@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('status')->default('active')->index();
             $table->timestamps();
 
-            $table->unique(['learning_class_id', 'assessment_id']);
+            $table->unique(['learning_class_id', 'assessment_id'], 'class_assessment_unique');
             $table->index(['learning_class_id', 'status']);
             $table->index('assessment_id');
         });

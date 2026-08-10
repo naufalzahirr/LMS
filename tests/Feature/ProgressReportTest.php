@@ -151,6 +151,41 @@ class ProgressReportTest extends TestCase
         $this->assertSame($before, $context['progress']->fresh()->getAttributes());
     }
 
+    public function test_overview_is_paginated_and_student_search_is_authorized_and_bounded(): void
+    {
+        $context = $this->reportContext();
+        $admin = $this->userWithRole('Admin');
+
+        User::factory(30)
+            ->sequence(fn ($sequence): array => ['name' => "Search Target {$sequence->index}"])
+            ->create()
+            ->each(function (User $student) use ($context): void {
+                $student->assignRole('Student');
+                Enrollment::factory()
+                    ->for($context['class'])
+                    ->for($student, 'student')
+                    ->create();
+            });
+
+        $this->actingAs($admin)
+            ->get(route('admin.reports.progress.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('report.rows', 25)
+                ->where('report.pagination.total', 31));
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.reports.students', ['search' => 'Search Target']))
+            ->assertOk()
+            ->assertJsonCount(20, 'students');
+
+        foreach ([$this->userWithRole('Student'), $this->userWithRole('Parent')] as $user) {
+            $this->actingAs($user)
+                ->getJson(route('admin.reports.students', ['search' => 'example']))
+                ->assertForbidden();
+        }
+    }
+
     /** @return array<string, mixed> */
     private function reportContext(): array
     {

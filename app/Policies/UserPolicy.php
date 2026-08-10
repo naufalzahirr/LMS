@@ -20,26 +20,31 @@ class UserPolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('manage-users');
+        return $this->canManage($user);
     }
 
     public function view(User $user, User $model): bool
     {
-        return $user->hasPermissionTo('manage-users');
+        return $this->canManage($user);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasPermissionTo('manage-users');
+        return $this->canManage($user);
     }
 
     public function update(User $user, User $model): bool
     {
-        return $user->hasPermissionTo('manage-users');
+        return $this->canManage($user);
     }
 
     public function delete(User $user, User $model): bool
     {
-        return $user->hasPermissionTo('manage-users') && $user->isNot($model);
+        return $this->canManage($user) && $user->isNot($model);
+    }
+
+    private function canManage(User $user): bool
+    {
+        return $user->hasRole('Admin') && $user->hasPermissionTo('manage-users');
     }
 }

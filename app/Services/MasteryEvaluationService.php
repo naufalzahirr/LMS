@@ -7,6 +7,7 @@ use App\Enums\MasteryRuleStatus;
 use App\Enums\RemedialAssignmentStatus;
 use App\Enums\StudentCompetencyStatus;
 use App\Models\AssessmentAttempt;
+use App\Models\Enrollment;
 use App\Models\MasteryRule;
 use App\Models\RemedialAssignment;
 use App\Models\StudentCompetencyProgress;
@@ -37,6 +38,9 @@ class MasteryEvaluationService
     public function recalculate(MasteryRule $rule, int $enrollmentId): StudentCompetencyProgress
     {
         return DB::transaction(function () use ($rule, $enrollmentId): StudentCompetencyProgress {
+            Enrollment::query()->whereKey($enrollmentId)->lockForUpdate()->firstOrFail();
+            $rule = MasteryRule::query()->whereKey($rule->id)->lockForUpdate()->firstOrFail();
+            $rule->loadMissing('classAssessment');
             $attempts = AssessmentAttempt::query()
                 ->where('enrollment_id', $enrollmentId)
                 ->where('learning_class_assessment_id', $rule->learning_class_assessment_id)

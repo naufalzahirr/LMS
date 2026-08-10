@@ -13,12 +13,12 @@ class QuestionBankPolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['Admin', 'Tutor']);
+        return $this->admin($user) || $user->hasRole('Tutor');
     }
 
     public function view(User $user, QuestionBank $questionBank): bool
     {
-        return $this->viewAny($user);
+        return $this->admin($user) || $this->access->canManageQuestionBank($user, $questionBank);
     }
 
     public function create(User $user, ?Course $course = null): bool

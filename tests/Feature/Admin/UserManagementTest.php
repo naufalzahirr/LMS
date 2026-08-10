@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\AssessmentAnswer;
+use App\Models\LearningClass;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -136,6 +138,38 @@ class UserManagementTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->has('users.data', 10)
                 ->where('users.total', 12));
+    }
+
+    public function test_role_change_cannot_invalidate_existing_delivery_relationships(): void
+    {
+        $admin = $this->userWithRole('Admin');
+        $tutor = $this->userWithRole('Tutor');
+        LearningClass::factory()->create()->tutors()->attach($tutor);
+
+        $this->actingAs($admin)
+            ->put(route('admin.users.update', $tutor), [
+                'name' => $tutor->name,
+                'email' => $tutor->email,
+                'password' => '',
+                'password_confirmation' => '',
+                'role' => 'Parent',
+            ])
+            ->assertSessionHasErrors('role');
+
+        $this->assertTrue($tutor->fresh()->hasRole('Tutor'));
+    }
+
+    public function test_grading_history_prevents_user_deletion(): void
+    {
+        $admin = $this->userWithRole('Admin');
+        $grader = $this->userWithRole('Tutor');
+        AssessmentAnswer::factory()->create(['graded_by' => $grader->id]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $grader))
+            ->assertSessionHasErrors('user');
+
+        $this->assertNotNull($grader->fresh());
     }
 
     private function userWithRole(string $role): User

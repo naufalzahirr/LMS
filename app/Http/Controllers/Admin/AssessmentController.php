@@ -14,6 +14,7 @@ use App\Models\Question;
 use App\Models\User;
 use App\Services\AssessmentAuthoringOptionsService;
 use App\Services\AssessmentService;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -24,6 +25,7 @@ class AssessmentController extends Controller
     public function __construct(
         private readonly AssessmentService $service,
         private readonly AssessmentAuthoringOptionsService $options,
+        private readonly TutorCourseAccessService $tutorAccess,
     ) {}
 
     public function index(Request $request): Response
@@ -39,6 +41,11 @@ class AssessmentController extends Controller
             ->with('competency.course.program:id,name')
             ->withCount('assessmentQuestions')
             ->withSum('assessmentQuestions as total_points', 'points');
+        $user = $this->user($request);
+
+        if ($user->hasRole('Tutor')) {
+            $query->whereHas('competency', fn ($query) => $query->whereIn('course_id', $this->tutorAccess->manageableCourseIds($user)));
+        }
 
         if ($search !== '') {
             $query->where(fn ($query) => $query
@@ -67,7 +74,6 @@ class AssessmentController extends Controller
         }
 
         $paginator = $query->orderByDesc('updated_at')->paginate(10)->withQueryString();
-        $user = $this->user($request);
 
         return Inertia::render('admin/assessments/Index', [
             'assessments' => [
@@ -98,7 +104,7 @@ class AssessmentController extends Controller
                 'purpose' => $purpose->value ?? '',
                 'status' => $status->value ?? '',
             ],
-            ...$this->options->forUser($user, false),
+            ...$this->options->forUser($user),
             'purposes' => AssessmentPurpose::options(),
             'statuses' => AssessmentStatus::options(),
             'canManage' => $user->can('create', Assessment::class),

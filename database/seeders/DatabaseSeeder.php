@@ -14,8 +14,15 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(RolePermissionSeeder::class);
+
+        if (app()->isProduction()) {
+            $this->command->warn('Production seeding stopped after roles and permissions. Demo users and learning data were not created.');
+
+            return;
+        }
+
         $this->call([
-            RolePermissionSeeder::class,
             AdminUserSeeder::class,
             AcademicSeeder::class,
             DeliverySeeder::class,

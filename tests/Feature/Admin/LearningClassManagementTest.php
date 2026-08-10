@@ -104,6 +104,22 @@ class LearningClassManagementTest extends TestCase
         $this->assertTrue($learningClass->course->is($course));
     }
 
+    public function test_class_with_delivery_history_cannot_move_to_another_course(): void
+    {
+        $admin = $this->userWithRole('Admin');
+        $learningClass = LearningClass::factory()->create();
+        Enrollment::factory()->for($learningClass)->create();
+        $otherCourse = Course::factory()->create();
+
+        $this->actingAs($admin)
+            ->put(route('admin.classes.update', $learningClass), $this->payload($otherCourse, [
+                'code' => $learningClass->code,
+            ]))
+            ->assertSessionHasErrors('course_id');
+
+        $this->assertNotSame($otherCourse->id, $learningClass->fresh()->course_id);
+    }
+
     public function test_empty_class_can_be_soft_deleted(): void
     {
         $learningClass = LearningClass::factory()->create();

@@ -8,6 +8,7 @@ use App\Enums\StudentCompetencyStatus;
 use App\Models\Enrollment;
 use App\Models\LearningClass;
 use App\Models\LearningClassAssessment;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class ProgressReportQueryService
 {
@@ -17,8 +18,8 @@ class ProgressReportQueryService
     ) {}
 
     /**
-     * @param  array{program_id: int, course_id: int, learning_class_id: int, student_id: int, mastery_status: string}  $filters
-     * @return array{rows: array<int, array<string, mixed>>, summary: array<string, int|float>}
+     * @param  array{program_id: int, course_id: int, learning_class_id: int, student_id: int, mastery_status: string, page: int}  $filters
+     * @return array{rows: array<int, array<string, mixed>>, pagination: array<string, mixed>, summary: array<string, int|float>}
      */
     public function overview(array $filters): array
     {
@@ -106,8 +107,23 @@ class ProgressReportQueryService
             ];
         }
 
+        $paginator = new LengthAwarePaginator(
+            array_slice($rows, ($filters['page'] - 1) * 25, 25),
+            count($rows),
+            25,
+            $filters['page'],
+            ['path' => route('admin.reports.progress.index')],
+        );
+        $paginator->withQueryString();
+
         return [
-            'rows' => $rows,
+            'rows' => $paginator->items(),
+            'pagination' => [
+                'links' => $paginator->linkCollection()->all(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
             'summary' => [
                 'students' => collect($rows)->pluck('student_id')->unique()->count(),
                 'classes' => collect($rows)->pluck('class_id')->unique()->count(),
@@ -203,10 +219,16 @@ class ProgressReportQueryService
 
         $assignments = LearningClassAssessment::query()
             ->where('learning_class_id', $learningClass->id)
-            ->with([
-                'assessment:id,title,purpose,competency_id',
-                'attempts:id,learning_class_assessment_id,status,percentage',
+            ->with('assessment:id,title,purpose,competency_id')
+            ->withCount([
+                'attempts',
+                'attempts as in_progress_count' => fn ($query) => $query->where('status', AssessmentAttemptStatus::InProgress->value),
+                'attempts as pending_grading_count' => fn ($query) => $query->where('status', AssessmentAttemptStatus::PendingGrading->value),
+                'attempts as graded_count' => fn ($query) => $query->where('status', AssessmentAttemptStatus::Graded->value),
             ])
+            ->withAvg([
+                'attempts as graded_average_percentage' => fn ($query) => $query->where('status', AssessmentAttemptStatus::Graded->value),
+            ], 'percentage')
             ->orderBy('id')
             ->get();
 
@@ -238,32 +260,19 @@ class ProgressReportQueryService
                 )->values()->all(),
                 'students' => $heatmapStudents,
             ],
-            'assessments' => $assignments->map(function (LearningClassAssessment $assignment): array {
-                $graded = $assignment->attempts->filter(
-                    fn ($attempt): bool => $attempt->status === AssessmentAttemptStatus::Graded,
-                );
-                $percentages = $graded->pluck('percentage')
-                    ->filter(fn (mixed $score): bool => $score !== null)
-                    ->map(fn (mixed $score): float => (float) $score);
-
-                return [
+            'assessments' => $assignments->map(
+                fn (LearningClassAssessment $assignment): array => [
                     'assessment' => $assignment->assessment->title,
                     'purpose' => $assignment->assessment->purpose->value,
-                    'attempts' => $assignment->attempts->count(),
-                    'in_progress' => $assignment->attempts->where(
-                        'status',
-                        AssessmentAttemptStatus::InProgress,
-                    )->count(),
-                    'pending_grading' => $assignment->attempts->where(
-                        'status',
-                        AssessmentAttemptStatus::PendingGrading,
-                    )->count(),
-                    'graded' => $graded->count(),
-                    'average_score' => $percentages->isEmpty()
+                    'attempts' => (int) $assignment->getAttribute('attempts_count'),
+                    'in_progress' => (int) $assignment->getAttribute('in_progress_count'),
+                    'pending_grading' => (int) $assignment->getAttribute('pending_grading_count'),
+                    'graded' => (int) $assignment->getAttribute('graded_count'),
+                    'average_score' => $assignment->getAttribute('graded_average_percentage') === null
                         ? null
-                        : round($percentages->average(), 2),
-                ];
-            })->values()->all(),
+                        : round((float) $assignment->getAttribute('graded_average_percentage'), 2),
+                ],
+            )->values()->all(),
             'attention' => $attention,
         ];
     }

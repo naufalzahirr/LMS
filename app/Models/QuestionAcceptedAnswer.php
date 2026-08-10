@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\QuestionAcceptedAnswerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Question $question
  */
 #[Fillable(['question_id', 'answer_text', 'case_sensitive'])]
+#[Hidden(['answer_text', 'case_sensitive'])]
 class QuestionAcceptedAnswer extends Model
 {
     /** @use HasFactory<QuestionAcceptedAnswerFactory> */

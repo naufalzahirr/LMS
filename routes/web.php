@@ -45,6 +45,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('admin/reports/progress', [ProgressReportController::class, 'index'])
         ->name('admin.reports.progress.index');
+    Route::get('admin/reports/students', [ProgressReportController::class, 'students'])
+        ->middleware('throttle:60,1')
+        ->name('admin.reports.students');
     Route::get('admin/reports/classes/{learningClass}/progress.csv', [ProgressReportController::class, 'csv'])
         ->name('admin.reports.classes.progress.csv');
     Route::get('admin/reports/classes/{learningClass}', [ProgressReportController::class, 'show'])
@@ -170,12 +173,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('student/classes/{learningClass}/assessments/{assignment}', [StudentAssessmentController::class, 'show'])
         ->name('student.assessments.show');
     Route::post('student/classes/{learningClass}/assessments/{assignment}/start', [StudentAssessmentController::class, 'start'])
+        ->middleware('throttle:assessment-start')
         ->name('student.assessments.start');
     Route::get('student/assessment-attempts/{attempt}', [StudentAssessmentAttemptController::class, 'show'])
         ->name('student.assessment-attempts.show');
     Route::patch('student/assessment-attempts/{attempt}/questions/{attemptQuestion}/answer', [StudentAssessmentAnswerController::class, 'update'])
+        ->middleware('throttle:assessment-answer')
         ->name('student.assessment-answers.update');
     Route::post('student/assessment-attempts/{attempt}/submit', [StudentAssessmentAttemptController::class, 'submit'])
+        ->middleware('throttle:assessment-submit')
         ->name('student.assessment-attempts.submit');
     Route::get('student/assessment-attempts/{attempt}/result', [StudentAssessmentAttemptController::class, 'result'])
         ->name('student.assessment-attempts.result');

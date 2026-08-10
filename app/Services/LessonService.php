@@ -8,6 +8,7 @@ use App\Models\Lesson;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -26,7 +27,7 @@ class LessonService
 
                 if ($file !== null) {
                     $storedPath = $this->storeFile($lesson, $file);
-                    $lesson->update(['file_path' => $storedPath]);
+                    $lesson->forceFill(['file_path' => $storedPath])->save();
                 }
 
                 return $lesson->refresh();
@@ -43,6 +44,15 @@ class LessonService
      */
     public function update(Lesson $lesson, array $data, ?UploadedFile $file): Lesson
     {
+        if ($lesson->module_id !== $data['module_id']
+            && ($lesson->progressRecords()->exists()
+                || $lesson->defaultRemedialRules()->exists()
+                || $lesson->remedialAssignmentLessons()->exists())) {
+            throw ValidationException::withMessages([
+                'module_id' => __('A lesson with learning or remedial history cannot be moved to another module.'),
+            ]);
+        }
+
         $oldPath = $lesson->managedFilePath();
         $newPath = null;
 
@@ -56,10 +66,10 @@ class LessonService
                 : null;
 
             $updatedLesson = DB::transaction(function () use ($lesson, $data, $filePath): Lesson {
-                $lesson->update([
+                $lesson->forceFill([
                     ...$data,
                     'file_path' => $filePath,
-                ]);
+                ])->save();
 
                 return $lesson->refresh();
             });
@@ -81,7 +91,7 @@ class LessonService
         $filePath = $lesson->managedFilePath();
 
         DB::transaction(function () use ($lesson): void {
-            $lesson->update(['file_path' => null]);
+            $lesson->forceFill(['file_path' => null])->save();
             $lesson->delete();
         });
 

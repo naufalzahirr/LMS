@@ -24,9 +24,16 @@ class CompetencyService
     {
         return DB::transaction(function () use ($competency, $data): Competency {
             if ($competency->course_id !== $data['course_id']
-                && ($competency->prerequisites()->exists() || $competency->dependents()->exists())) {
+                && ($competency->modules()->exists()
+                    || $competency->questions()->exists()
+                    || $competency->assessments()->exists()
+                    || $competency->prerequisites()->exists()
+                    || $competency->dependents()->exists()
+                    || $competency->masteryRules()->exists()
+                    || $competency->studentProgress()->exists()
+                    || $competency->remedialAssignments()->exists())) {
                 throw ValidationException::withMessages([
-                    'course_id' => __('Remove competency prerequisite links before moving it to another course.'),
+                    'course_id' => __('A competency with academic, mastery, or remedial records cannot be moved to another course.'),
                 ]);
             }
 

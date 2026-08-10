@@ -4,17 +4,21 @@ namespace App\Policies;
 
 use App\Models\Program;
 use App\Models\User;
+use App\Services\TutorCourseAccessService;
 
 class ProgramPolicy
 {
+    public function __construct(private readonly TutorCourseAccessService $access) {}
+
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['Admin', 'Tutor']);
+        return $this->canManage($user) || $user->hasRole('Tutor');
     }
 
     public function view(User $user, Program $program): bool
     {
-        return $this->viewAny($user);
+        return $this->canManage($user)
+            || ($user->hasRole('Tutor') && $program->courses()->whereIn('id', $this->access->manageableCourseIds($user))->exists());
     }
 
     public function create(User $user): bool

@@ -22,6 +22,7 @@ class LessonProgressService
         $this->ensureMayMutate($user, $enrollment, $lesson);
 
         return DB::transaction(function () use ($enrollment, $lesson): LessonProgress {
+            $this->lockEnrollment($enrollment);
             $progress = $this->findOrNew($enrollment, $lesson);
             $now = now();
 
@@ -44,6 +45,7 @@ class LessonProgressService
         $this->ensureMayMutate($user, $enrollment, $lesson);
 
         return DB::transaction(function () use ($enrollment, $lesson): LessonProgress {
+            $this->lockEnrollment($enrollment);
             $progress = $this->findOrNew($enrollment, $lesson);
             $now = now();
             $progress->status = LessonProgressStatus::Completed;
@@ -63,6 +65,7 @@ class LessonProgressService
         $this->ensureMayMutate($user, $enrollment, $lesson);
 
         return DB::transaction(function () use ($enrollment, $lesson): LessonProgress {
+            $this->lockEnrollment($enrollment);
             $progress = $this->findOrNew($enrollment, $lesson);
             $now = now();
             $progress->status = LessonProgressStatus::InProgress;
@@ -83,6 +86,11 @@ class LessonProgressService
             'enrollment_id' => $enrollment->id,
             'lesson_id' => $lesson->id,
         ]);
+    }
+
+    private function lockEnrollment(Enrollment $enrollment): void
+    {
+        Enrollment::query()->whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
     }
 
     private function ensureMayMutate(User $user, Enrollment $enrollment, Lesson $lesson): void

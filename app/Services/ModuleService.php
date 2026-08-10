@@ -23,6 +23,12 @@ class ModuleService
     public function update(Module $module, array $data): Module
     {
         return DB::transaction(function () use ($module, $data): Module {
+            if ($module->competency_id !== $data['competency_id'] && $module->lessons()->exists()) {
+                throw ValidationException::withMessages([
+                    'competency_id' => __('A module with lessons cannot be moved to another competency.'),
+                ]);
+            }
+
             $module->update($data);
 
             return $module->refresh();

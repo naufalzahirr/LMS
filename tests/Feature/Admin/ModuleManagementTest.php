@@ -160,6 +160,23 @@ class ModuleManagementTest extends TestCase
         $this->assertSame(AcademicStatus::Inactive, $module->status);
     }
 
+    public function test_module_with_lessons_cannot_move_to_another_competency(): void
+    {
+        $admin = $this->userWithRole('Admin');
+        $module = Module::factory()->create();
+        Lesson::factory()->for($module)->create();
+        $otherCompetency = Competency::factory()->create();
+
+        $this->actingAs($admin)
+            ->put(route('admin.modules.update', $module), $this->validPayload([
+                'competency_id' => $otherCompetency->id,
+                'slug' => $module->slug,
+            ]))
+            ->assertSessionHasErrors('competency_id');
+
+        $this->assertNotSame($otherCompetency->id, $module->fresh()->competency_id);
+    }
+
     public function test_admin_can_soft_delete_empty_module(): void
     {
         $admin = $this->userWithRole('Admin');

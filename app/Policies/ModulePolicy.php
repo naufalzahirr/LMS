@@ -13,12 +13,12 @@ class ModulePolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['Admin', 'Tutor']);
+        return $this->canAdminManage($user) || $user->hasRole('Tutor');
     }
 
     public function view(User $user, Module $module): bool
     {
-        return $this->viewAny($user);
+        return $this->canAdminManage($user) || $this->tutorCourseAccess->canManageModule($user, $module);
     }
 
     public function create(User $user, ?Competency $competency = null): bool

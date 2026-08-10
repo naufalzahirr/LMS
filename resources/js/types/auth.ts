@@ -14,6 +14,7 @@ export type Auth = {
     user: User;
     roles: string[];
     permissions: string[];
+    has_active_teaching_course: boolean;
 };
 
 /* @chisel-passkeys */

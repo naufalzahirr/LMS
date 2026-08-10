@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\StoreProgramRequest;
 use App\Http\Requests\Admin\UpdateProgramRequest;
 use App\Models\Program;
 use App\Services\ProgramService;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,7 +16,10 @@ use Inertia\Response;
 
 class ProgramController extends Controller
 {
-    public function __construct(private readonly ProgramService $programService) {}
+    public function __construct(
+        private readonly ProgramService $programService,
+        private readonly TutorCourseAccessService $tutorAccess,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -23,7 +27,15 @@ class ProgramController extends Controller
 
         $search = trim($request->string('search')->toString());
         $status = AcademicStatus::tryFrom($request->string('status')->toString());
-        $query = Program::query()->withCount('courses');
+        $courseIds = $this->tutorAccess->manageableCourseIds($request->user());
+        $query = Program::query();
+
+        if ($request->user()->hasRole('Tutor')) {
+            $query->whereHas('courses', fn ($query) => $query->whereIn('id', $courseIds))
+                ->withCount(['courses' => fn ($query) => $query->whereIn('id', $courseIds)]);
+        } else {
+            $query->withCount('courses');
+        }
 
         if ($search !== '') {
             $query->where(function ($query) use ($search): void {

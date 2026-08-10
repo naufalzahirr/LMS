@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\QuestionOptionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Question $question
  */
 #[Fillable(['question_id', 'option_text', 'is_correct', 'sort_order'])]
+#[Hidden(['is_correct'])]
 class QuestionOption extends Model
 {
     /** @use HasFactory<QuestionOptionFactory> */

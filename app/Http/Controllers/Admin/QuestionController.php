@@ -13,6 +13,7 @@ use App\Models\QuestionOption;
 use App\Models\User;
 use App\Services\AssessmentAuthoringOptionsService;
 use App\Services\QuestionService;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -20,7 +21,11 @@ use Inertia\Response;
 
 class QuestionController extends Controller
 {
-    public function __construct(private readonly QuestionService $service, private readonly AssessmentAuthoringOptionsService $options) {}
+    public function __construct(
+        private readonly QuestionService $service,
+        private readonly AssessmentAuthoringOptionsService $options,
+        private readonly TutorCourseAccessService $tutorAccess,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -33,6 +38,12 @@ class QuestionController extends Controller
         $type = QuestionType::tryFrom($request->string('question_type')->toString());
         $status = AcademicStatus::tryFrom($request->string('status')->toString());
         $query = Question::query()->with(['questionBank.course.program:id,name', 'competency:id,course_id,name']);
+        $user = $this->user($request);
+
+        if ($user->hasRole('Tutor')) {
+            $courseIds = $this->tutorAccess->manageableCourseIds($user);
+            $query->whereHas('questionBank', fn ($query) => $query->whereIn('course_id', $courseIds));
+        }
         if ($search !== '') {
             $query->where('prompt', 'like', "%{$search}%");
         }
@@ -55,7 +66,6 @@ class QuestionController extends Controller
             $query->where('status', $status->value);
         }
         $paginator = $query->orderBy('question_bank_id')->orderBy('sort_order')->paginate(10)->withQueryString();
-        $user = $this->user($request);
 
         return Inertia::render('admin/questions/Index', [
             'questions' => [
@@ -69,7 +79,7 @@ class QuestionController extends Controller
                 'links' => $paginator->linkCollection()->all(), 'from' => $paginator->firstItem(), 'to' => $paginator->lastItem(), 'total' => $paginator->total(),
             ],
             'filters' => ['search' => $search, 'program_id' => $programId > 0 ? (string) $programId : '', 'course_id' => $courseId > 0 ? (string) $courseId : '', 'competency_id' => $competencyId > 0 ? (string) $competencyId : '', 'question_bank_id' => $bankId > 0 ? (string) $bankId : '', 'question_type' => $type->value ?? '', 'status' => $status->value ?? ''],
-            ...$this->options->forUser($user, false), 'questionTypes' => QuestionType::options(), 'statuses' => AcademicStatus::options(),
+            ...$this->options->forUser($user), 'questionTypes' => QuestionType::options(), 'statuses' => AcademicStatus::options(),
             'canManage' => $user->can('create', Question::class),
         ]);
     }

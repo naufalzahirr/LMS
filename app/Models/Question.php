@@ -6,6 +6,7 @@ use App\Enums\AcademicStatus;
 use App\Enums\QuestionType;
 use Database\Factories\QuestionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -48,6 +49,7 @@ use Illuminate\Support\Carbon;
     'status',
     'sort_order',
 ])]
+#[Hidden(['correct_boolean'])]
 class Question extends Model
 {
     /** @use HasFactory<QuestionFactory> */

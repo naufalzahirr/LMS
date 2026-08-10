@@ -6,6 +6,7 @@ use App\Enums\AcademicStatus;
 use App\Enums\LessonType;
 use Database\Factories\LessonFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -42,11 +43,11 @@ use Illuminate\Support\Carbon;
     'lesson_type',
     'content',
     'external_url',
-    'file_path',
     'duration_minutes',
     'sort_order',
     'status',
 ])]
+#[Hidden(['file_path'])]
 class Lesson extends Model
 {
     /** @use HasFactory<LessonFactory> */
@@ -93,7 +94,10 @@ class Lesson extends Model
 
         $prefix = "lesson-files/{$this->id}/";
 
-        if (! str_starts_with($this->file_path, $prefix) || str_contains($this->file_path, '..')) {
+        if (! str_starts_with($this->file_path, $prefix)
+            || str_contains($this->file_path, '..')
+            || str_contains($this->file_path, '\\')
+            || basename($this->file_path) === '') {
             return null;
         }
 

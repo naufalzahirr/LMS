@@ -63,7 +63,7 @@ class LessonFactory extends Factory
             'external_url' => null,
             'file_path' => null,
         ])->afterCreating(function (Lesson $lesson): void {
-            $lesson->update(['file_path' => "lesson-files/{$lesson->id}/document.pdf"]);
+            $lesson->forceFill(['file_path' => "lesson-files/{$lesson->id}/document.pdf"])->save();
         });
     }
 
@@ -75,7 +75,7 @@ class LessonFactory extends Factory
             'external_url' => null,
             'file_path' => null,
         ])->afterCreating(function (Lesson $lesson): void {
-            $lesson->update(['file_path' => "lesson-files/{$lesson->id}/image.png"]);
+            $lesson->forceFill(['file_path' => "lesson-files/{$lesson->id}/image.png"])->save();
         });
     }
 }

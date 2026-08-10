@@ -10,7 +10,9 @@ return new class extends Migration
     {
         Schema::create('assessment_attempt_accepted_answers', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('assessment_attempt_question_id')->constrained()->restrictOnDelete();
+            $table->foreignId('assessment_attempt_question_id')
+                ->constrained(indexName: 'attempt_accepted_answer_question_foreign')
+                ->restrictOnDelete();
             $table->text('answer_text');
             $table->boolean('case_sensitive');
             $table->timestamps();

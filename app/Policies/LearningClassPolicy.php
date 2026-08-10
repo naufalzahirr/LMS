@@ -9,13 +9,16 @@ class LearningClassPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['Admin', 'Tutor']);
+        return ($this->isAdmin($user) && $user->hasPermissionTo('manage-classes'))
+            || ($user->hasRole('Tutor') && $user->hasPermissionTo('view-class-progress'));
     }
 
     public function view(User $user, LearningClass $learningClass): bool
     {
-        return $this->isAdmin($user)
-            || ($user->hasRole('Tutor') && $user->teachingClasses()->whereKey($learningClass->id)->exists());
+        return ($this->isAdmin($user) && $user->hasPermissionTo('manage-classes'))
+            || ($user->hasRole('Tutor')
+                && $user->hasPermissionTo('view-class-progress')
+                && $user->teachingClasses()->whereKey($learningClass->id)->exists());
     }
 
     public function manage(User $user, ?LearningClass $learningClass = null): bool

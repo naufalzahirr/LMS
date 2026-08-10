@@ -139,7 +139,7 @@ class TutorAssignmentAndScopedContentTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('canManage', true)
                 ->where('modules.data.0.can_update', true)
-                ->where('modules.data.1.can_update', false));
+                ->has('modules.data', 1));
 
         $this->actingAs($tutor)->get(route('admin.modules.create'))
             ->assertInertia(fn (Assert $page) => $page

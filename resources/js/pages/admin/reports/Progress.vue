@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Eye, Search } from '@lucide/vue';
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import Heading from '@/components/Heading.vue';
+import PaginationLinks from '@/components/PaginationLinks.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -13,6 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import type { PaginationLink } from '@/types/academic';
 
 type Option = { id: number; name: string };
 type CourseOption = Option & { program_id: number };
@@ -39,6 +43,12 @@ type ReportRow = {
 const props = defineProps<{
     report: {
         rows: ReportRow[];
+        pagination: {
+            links: PaginationLink[];
+            from: number | null;
+            to: number | null;
+            total: number;
+        };
         summary: {
             students: number;
             classes: number;
@@ -59,6 +69,7 @@ const props = defineProps<{
     courses: CourseOption[];
     classes: ClassOption[];
     students: StudentOption[];
+    studentSearchUrl: string;
     masteryStatuses: string[];
 }>();
 
@@ -77,6 +88,50 @@ const filters = reactive({
     student_id: props.filters.student_id || 'all',
     mastery_status: props.filters.mastery_status || 'all',
 });
+const studentOptions = ref<StudentOption[]>([...props.students]);
+const studentSearch = ref('');
+let studentSearchTimer: ReturnType<typeof setTimeout> | undefined;
+
+watch(studentSearch, (search) => {
+    clearTimeout(studentSearchTimer);
+
+    if (search.trim().length < 2) {
+        return;
+    }
+
+    studentSearchTimer = setTimeout(() => void loadStudents(search), 250);
+});
+
+async function loadStudents(search: string): Promise<void> {
+    try {
+        const url = new URL(props.studentSearchUrl, window.location.origin);
+        url.searchParams.set('search', search.trim());
+        const response = await fetch(url, {
+            headers: { Accept: 'application/json' },
+        });
+
+        if (!response.ok) {
+            return;
+        }
+
+        const payload = (await response.json()) as {
+            students: StudentOption[];
+        };
+        const selected = studentOptions.value.find(
+            (student) => String(student.id) === filters.student_id,
+        );
+        studentOptions.value = selected
+            ? [
+                  selected,
+                  ...payload.students.filter(
+                      (student) => student.id !== selected.id,
+                  ),
+              ]
+            : payload.students;
+    } catch {
+        // Keep the current selection usable when the search request fails.
+    }
+}
 const availableCourses = computed(() =>
     filters.program_id === 'all'
         ? props.courses
@@ -143,74 +198,115 @@ function resetFilters(): void {
             class="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto_auto]"
             @submit.prevent="applyFilters"
         >
-            <Select v-model="filters.program_id">
-                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All programs</SelectItem>
-                    <SelectItem
-                        v-for="program in programs"
-                        :key="program.id"
-                        :value="String(program.id)"
-                    >
-                        {{ program.name }}
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-            <Select v-model="filters.course_id">
-                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All courses</SelectItem>
-                    <SelectItem
-                        v-for="course in availableCourses"
-                        :key="course.id"
-                        :value="String(course.id)"
-                    >
-                        {{ course.name }}
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-            <Select v-model="filters.learning_class_id">
-                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All classes</SelectItem>
-                    <SelectItem
-                        v-for="learningClass in availableClasses"
-                        :key="learningClass.id"
-                        :value="String(learningClass.id)"
-                    >
-                        {{ learningClass.name }}
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-            <Select v-model="filters.student_id">
-                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All students</SelectItem>
-                    <SelectItem
-                        v-for="student in students"
-                        :key="student.id"
-                        :value="String(student.id)"
-                    >
-                        {{ student.name }}
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-            <Select v-model="filters.mastery_status">
-                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All mastery statuses</SelectItem>
-                    <SelectItem
-                        v-for="status in masteryStatuses"
-                        :key="status"
-                        :value="status"
-                        class="capitalize"
-                    >
-                        {{ label(status) }}
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-            <Button type="submit"><Search /> Filter</Button>
-            <Button type="button" variant="outline" @click="resetFilters"
+            <div class="grid gap-1.5">
+                <Label for="report-program">Program</Label>
+                <Select v-model="filters.program_id">
+                    <SelectTrigger id="report-program" class="w-full"
+                        ><SelectValue
+                    /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All programs</SelectItem>
+                        <SelectItem
+                            v-for="program in programs"
+                            :key="program.id"
+                            :value="String(program.id)"
+                        >
+                            {{ program.name }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div class="grid gap-1.5">
+                <Label for="report-course">Course</Label>
+                <Select v-model="filters.course_id">
+                    <SelectTrigger id="report-course" class="w-full"
+                        ><SelectValue
+                    /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All courses</SelectItem>
+                        <SelectItem
+                            v-for="course in availableCourses"
+                            :key="course.id"
+                            :value="String(course.id)"
+                        >
+                            {{ course.name }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div class="grid gap-1.5">
+                <Label for="report-class">Class</Label>
+                <Select v-model="filters.learning_class_id">
+                    <SelectTrigger id="report-class" class="w-full"
+                        ><SelectValue
+                    /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All classes</SelectItem>
+                        <SelectItem
+                            v-for="learningClass in availableClasses"
+                            :key="learningClass.id"
+                            :value="String(learningClass.id)"
+                        >
+                            {{ learningClass.name }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div class="grid gap-1.5">
+                <Label for="report-student-search">Student</Label>
+                <Input
+                    id="report-student-search"
+                    v-model="studentSearch"
+                    type="search"
+                    placeholder="Search name or email"
+                    autocomplete="off"
+                />
+                <Select v-model="filters.student_id">
+                    <SelectTrigger
+                        id="report-student"
+                        class="w-full"
+                        aria-label="Selected student"
+                        ><SelectValue
+                    /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All students</SelectItem>
+                        <SelectItem
+                            v-for="student in studentOptions"
+                            :key="student.id"
+                            :value="String(student.id)"
+                        >
+                            {{ student.name }} · {{ student.email }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div class="grid gap-1.5">
+                <Label for="report-mastery-status">Mastery status</Label>
+                <Select v-model="filters.mastery_status">
+                    <SelectTrigger id="report-mastery-status" class="w-full"
+                        ><SelectValue
+                    /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all"
+                            >All mastery statuses</SelectItem
+                        >
+                        <SelectItem
+                            v-for="status in masteryStatuses"
+                            :key="status"
+                            :value="status"
+                            class="capitalize"
+                        >
+                            {{ label(status) }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <Button class="self-end" type="submit"><Search /> Filter</Button>
+            <Button
+                class="self-end"
+                type="button"
+                variant="outline"
+                @click="resetFilters"
                 >Reset</Button
             >
         </form>
@@ -344,5 +440,13 @@ function resetFilters(): void {
                 </p>
             </CardContent>
         </Card>
+
+        <PaginationLinks
+            :links="report.pagination.links"
+            :from="report.pagination.from"
+            :to="report.pagination.to"
+            :total="report.pagination.total"
+            item-label="enrollments"
+        />
     </div>
 </template>

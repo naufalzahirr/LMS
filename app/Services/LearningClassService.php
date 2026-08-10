@@ -23,6 +23,16 @@ class LearningClassService
     public function update(LearningClass $learningClass, array $data): LearningClass
     {
         return DB::transaction(function () use ($learningClass, $data): LearningClass {
+            if ($learningClass->course_id !== $data['course_id']
+                && ($learningClass->enrollments()->exists()
+                    || $learningClass->tutors()->exists()
+                    || $learningClass->assessmentAssignments()->exists()
+                    || $learningClass->masteryRules()->exists())) {
+                throw ValidationException::withMessages([
+                    'course_id' => __('A class with delivery records cannot be moved to another course.'),
+                ]);
+            }
+
             $learningClass->update($data);
 
             return $learningClass->refresh();
@@ -47,6 +57,12 @@ class LearningClassService
             if ($learningClass->assessmentAssignments()->exists()) {
                 throw ValidationException::withMessages([
                     'learning_class' => __('This class cannot be deleted while assessments are assigned.'),
+                ]);
+            }
+
+            if ($learningClass->masteryRules()->exists()) {
+                throw ValidationException::withMessages([
+                    'learning_class' => __('This class cannot be deleted while mastery rules reference it.'),
                 ]);
             }
 

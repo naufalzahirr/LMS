@@ -17,7 +17,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['remedial_assignment_id', 'lesson_id'], 'remedial_assignment_lesson_unique');
-            $table->index(['remedial_assignment_id', 'sort_order']);
+            $table->index(['remedial_assignment_id', 'sort_order'], 'remedial_lesson_order_index');
         });
     }
 

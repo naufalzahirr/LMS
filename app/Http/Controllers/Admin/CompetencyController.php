@@ -9,7 +9,9 @@ use App\Http\Requests\Admin\UpdateCompetencyRequest;
 use App\Models\Competency;
 use App\Models\Course;
 use App\Models\Program;
+use App\Models\User;
 use App\Services\CompetencyService;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,7 +19,10 @@ use Inertia\Response;
 
 class CompetencyController extends Controller
 {
-    public function __construct(private readonly CompetencyService $competencyService) {}
+    public function __construct(
+        private readonly CompetencyService $competencyService,
+        private readonly TutorCourseAccessService $tutorAccess,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -28,6 +33,12 @@ class CompetencyController extends Controller
         $courseId = $request->integer('course_id');
         $status = AcademicStatus::tryFrom($request->string('status')->toString());
         $query = Competency::query()->with('course.program:id,name');
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
+        if ($user->hasRole('Tutor')) {
+            $query->whereIn('course_id', $this->tutorAccess->manageableCourseIds($user));
+        }
 
         if ($search !== '') {
             $query->where(function ($query) use ($search): void {
@@ -165,8 +176,15 @@ class CompetencyController extends Controller
      */
     private function programs(): array
     {
-        return Program::query()
-            ->orderBy('name')
+        $query = Program::query()->orderBy('name');
+        $user = request()->user();
+
+        if ($user instanceof User && $user->hasRole('Tutor')) {
+            $courseIds = $this->tutorAccess->manageableCourseIds($user);
+            $query->whereHas('courses', fn ($query) => $query->whereIn('id', $courseIds));
+        }
+
+        return $query
             ->get(['id', 'name'])
             ->map(fn (Program $program): array => [
                 'id' => $program->id,
@@ -180,9 +198,14 @@ class CompetencyController extends Controller
      */
     private function courses(): array
     {
-        return Course::query()
-            ->with('program:id,name')
-            ->orderBy('name')
+        $query = Course::query()->with('program:id,name')->orderBy('name');
+        $user = request()->user();
+
+        if ($user instanceof User && $user->hasRole('Tutor')) {
+            $query->whereIn('id', $this->tutorAccess->manageableCourseIds($user));
+        }
+
+        return $query
             ->get(['id', 'program_id', 'name'])
             ->map(fn (Course $course): array => [
                 'id' => $course->id,

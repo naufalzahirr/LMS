@@ -130,9 +130,15 @@ class LessonController extends Controller
         $extension = pathinfo($path, PATHINFO_EXTENSION);
         $filename = Str::slug($lesson->title).($extension !== '' ? ".{$extension}" : '');
 
+        $headers = [
+            'Cache-Control' => 'private, no-store, no-cache, must-revalidate, max-age=0',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+            'X-Content-Type-Options' => 'nosniff',
+        ];
+
         return $request->boolean('download')
-            ? $disk->download($path, $filename)
-            : $disk->response($path, $filename);
+            ? $disk->download($path, $filename, $headers)
+            : $disk->response($path, $filename, $headers);
     }
 
     /** @return array{User, Enrollment} */

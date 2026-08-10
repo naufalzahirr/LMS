@@ -37,6 +37,13 @@ class ModuleController extends Controller
         $query = Module::query()
             ->with('competency.course.program:id,name')
             ->withCount('lessons');
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $manageableCourseIds = $this->tutorCourseAccess->manageableCourseIds($user);
+
+        if ($user->hasRole('Tutor')) {
+            $query->whereHas('competency', fn ($query) => $query->whereIn('course_id', $manageableCourseIds));
+        }
 
         if ($search !== '') {
             $query->where('name', 'like', "%{$search}%");
@@ -71,10 +78,7 @@ class ModuleController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $user = $request->user();
-        abort_unless($user instanceof User, 401);
         $adminCanManage = $user->hasRole('Admin') && $user->hasPermissionTo('manage-modules');
-        $manageableCourseIds = $this->tutorCourseAccess->manageableCourseIds($user);
 
         return Inertia::render('admin/modules/Index', [
             'modules' => [
@@ -102,7 +106,7 @@ class ModuleController extends Controller
                 'competency_id' => $competencyId > 0 ? (string) $competencyId : '',
                 'status' => $status->value ?? '',
             ],
-            ...$this->hierarchyOptions($user),
+            ...$this->hierarchyOptions($user, true),
             'statuses' => AcademicStatus::options(),
             'canManage' => $adminCanManage || $manageableCourseIds !== [],
         ]);

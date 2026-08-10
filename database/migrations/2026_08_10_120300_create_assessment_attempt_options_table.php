@@ -10,7 +10,9 @@ return new class extends Migration
     {
         Schema::create('assessment_attempt_options', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('assessment_attempt_question_id')->constrained()->restrictOnDelete();
+            $table->foreignId('assessment_attempt_question_id')
+                ->constrained(indexName: 'attempt_option_question_foreign')
+                ->restrictOnDelete();
             $table->text('option_text');
             $table->boolean('is_correct');
             $table->unsignedInteger('sort_order');

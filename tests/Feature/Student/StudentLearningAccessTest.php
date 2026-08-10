@@ -218,7 +218,7 @@ class StudentLearningAccessTest extends TestCase
             $path = $type === LessonType::Document
                 ? "lesson-files/{$lesson->id}/guide.pdf"
                 : "lesson-files/{$lesson->id}/diagram.png";
-            $lesson->update(['file_path' => $path]);
+            $lesson->forceFill(['file_path' => $path])->save();
             Storage::disk('local')->put($path, 'private lesson file');
 
             $this->actingAs($student)->get(route('student.lessons.file', [$learningClass, $lesson]))

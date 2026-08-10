@@ -2,11 +2,15 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
+use App\Services\TutorCourseAccessService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
+    public function __construct(private readonly TutorCourseAccessService $tutorAccess) {}
+
     /**
      * The root template that's loaded on the first page visit.
      *
@@ -44,6 +48,8 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user,
                 'roles' => $user?->getRoleNames()->values() ?? [],
                 'permissions' => $user?->getAllPermissions()->pluck('name')->values() ?? [],
+                'has_active_teaching_course' => $user instanceof User
+                    && $this->tutorAccess->hasAnyActiveCourse($user),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
