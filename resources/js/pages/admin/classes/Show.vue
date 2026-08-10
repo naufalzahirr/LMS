@@ -50,6 +50,9 @@ type EnrollmentRow = {
     status: EnrollmentStatus;
     enrolled_at: string;
     completed_at: string | null;
+    completed_lessons: number;
+    total_lessons: number;
+    progress_percentage: number;
 };
 
 defineProps<{
@@ -299,6 +302,7 @@ function unassignTutor(classId: number, tutor: DeliveryUserOption): void {
                                 <th class="px-5 py-3">Status</th>
                                 <th class="px-5 py-3">Enrolled</th>
                                 <th class="px-5 py-3">Completed</th>
+                                <th class="px-5 py-3">Lesson progress</th>
                                 <th class="px-5 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -330,6 +334,15 @@ function unassignTutor(classId: number, tutor: DeliveryUserOption): void {
                                 </td>
                                 <td class="px-5 py-4">
                                     {{ enrollment.completed_at ?? '—' }}
+                                </td>
+                                <td class="px-5 py-4">
+                                    <p class="font-medium">
+                                        {{ enrollment.completed_lessons }} /
+                                        {{ enrollment.total_lessons }}
+                                    </p>
+                                    <p class="text-muted-foreground">
+                                        {{ enrollment.progress_percentage }}%
+                                    </p>
                                 </td>
                                 <td class="px-5 py-4">
                                     <div class="flex justify-end gap-2">

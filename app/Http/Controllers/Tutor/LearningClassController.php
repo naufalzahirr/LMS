@@ -8,12 +8,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Enrollment;
 use App\Models\LearningClass;
 use App\Models\User;
+use App\Services\LearningProgressQueryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class LearningClassController extends Controller
 {
+    public function __construct(private readonly LearningProgressQueryService $progressQuery) {}
+
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', LearningClass::class);
@@ -76,6 +79,7 @@ class LearningClassController extends Controller
             'course.competencies.modules.lessons',
             'enrollments.student:id,name,email',
         ]);
+        $progress = $this->progressQuery->summariesForEnrollments($learningClass->enrollments);
 
         return Inertia::render('tutor/classes/Show', [
             'learningClass' => [
@@ -96,6 +100,9 @@ class LearningClassController extends Controller
                     'email' => $enrollment->student->email,
                 ],
                 'status' => $enrollment->status->value,
+                'completed_lessons' => $progress[$enrollment->id]['completed_lessons'],
+                'total_lessons' => $progress[$enrollment->id]['total_lessons'],
+                'progress_percentage' => $progress[$enrollment->id]['percentage'],
             ])->values()->all(),
             'contentSummary' => [
                 'competencies' => $learningClass->course->competencies->count(),

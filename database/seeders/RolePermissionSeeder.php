@@ -37,7 +37,6 @@ class RolePermissionSeeder extends Seeder
     private const ROLE_PERMISSIONS = [
         'Admin' => self::PERMISSIONS,
         'Tutor' => [
-            'manage-assessments',
             'view-class-progress',
         ],
         'Student' => ['view-own-progress'],

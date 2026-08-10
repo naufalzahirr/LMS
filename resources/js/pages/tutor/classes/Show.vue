@@ -23,6 +23,9 @@ type EnrollmentRow = {
     id: number;
     student: { name: string; email: string };
     status: EnrollmentStatus;
+    completed_lessons: number;
+    total_lessons: number;
+    progress_percentage: number;
 };
 defineProps<{
     learningClass: ClassDetails;
@@ -138,6 +141,8 @@ defineOptions({
                                 <th class="px-5 py-3">Student</th>
                                 <th class="px-5 py-3">Email</th>
                                 <th class="px-5 py-3">Enrollment status</th>
+                                <th class="px-5 py-3">Completed lessons</th>
+                                <th class="px-5 py-3">Progress</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y">
@@ -160,6 +165,13 @@ defineOptions({
                                         "
                                         >{{ enrollment.status }}</Badge
                                     >
+                                </td>
+                                <td class="px-5 py-4 font-medium">
+                                    {{ enrollment.completed_lessons }} /
+                                    {{ enrollment.total_lessons }}
+                                </td>
+                                <td class="px-5 py-4">
+                                    {{ enrollment.progress_percentage }}%
                                 </td>
                             </tr>
                         </tbody>

@@ -13,6 +13,7 @@ use App\Models\LearningClass;
 use App\Models\Program;
 use App\Models\User;
 use App\Services\LearningClassService;
+use App\Services\LearningProgressQueryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -20,7 +21,10 @@ use Inertia\Response;
 
 class LearningClassController extends Controller
 {
-    public function __construct(private readonly LearningClassService $learningClassService) {}
+    public function __construct(
+        private readonly LearningClassService $learningClassService,
+        private readonly LearningProgressQueryService $progressQuery,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -119,6 +123,7 @@ class LearningClassController extends Controller
         ]);
         $assignedTutorIds = $learningClass->tutors->pluck('id');
         $enrolledStudentIds = $learningClass->enrollments->pluck('student_id');
+        $progress = $this->progressQuery->summariesForEnrollments($learningClass->enrollments);
 
         return Inertia::render('admin/classes/Show', [
             'learningClass' => $this->classDetails($learningClass),
@@ -132,6 +137,9 @@ class LearningClassController extends Controller
                 'status' => $enrollment->status->value,
                 'enrolled_at' => $enrollment->enrolled_at->toDateTimeString(),
                 'completed_at' => $enrollment->completed_at?->toDateTimeString(),
+                'completed_lessons' => $progress[$enrollment->id]['completed_lessons'],
+                'total_lessons' => $progress[$enrollment->id]['total_lessons'],
+                'progress_percentage' => $progress[$enrollment->id]['percentage'],
             ])->values()->all(),
             'tutors' => $learningClass->tutors->map(fn (User $tutor): array => [
                 'id' => $tutor->id,

@@ -37,7 +37,6 @@ class RolePermissionSeederTest extends TestCase
         ], Role::findByName('Admin')->permissions->pluck('name')->all());
 
         $this->assertEqualsCanonicalizing([
-            'manage-assessments',
             'view-class-progress',
         ], Role::findByName('Tutor')->permissions->pluck('name')->all());
 

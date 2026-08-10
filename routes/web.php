@@ -10,6 +10,9 @@ use App\Http\Controllers\Admin\ParentStudentRelationshipController;
 use App\Http\Controllers\Admin\ProgramController;
 use App\Http\Controllers\Admin\TutorAssignmentController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Student\LearningClassController as StudentLearningClassController;
+use App\Http\Controllers\Student\LessonController as StudentLessonController;
+use App\Http\Controllers\Student\LessonProgressController as StudentLessonProgressController;
 use App\Http\Controllers\Tutor\LearningClassController as TutorLearningClassController;
 use Illuminate\Support\Facades\Route;
 
@@ -69,6 +72,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('tutor.classes.index');
     Route::get('tutor/classes/{learningClass}', [TutorLearningClassController::class, 'show'])
         ->name('tutor.classes.show');
+
+    Route::get('student/classes', [StudentLearningClassController::class, 'index'])
+        ->name('student.classes.index');
+    Route::get('student/classes/{learningClass}', [StudentLearningClassController::class, 'show'])
+        ->name('student.classes.show');
+    Route::get('student/classes/{learningClass}/lessons/{lesson}', [StudentLessonController::class, 'show'])
+        ->name('student.lessons.show');
+    Route::get('student/classes/{learningClass}/lessons/{lesson}/file', [StudentLessonController::class, 'file'])
+        ->name('student.lessons.file');
+    Route::patch('student/classes/{learningClass}/lessons/{lesson}/progress', [StudentLessonProgressController::class, 'update'])
+        ->name('student.lesson-progress.update');
 });
 
 require __DIR__.'/settings.php';

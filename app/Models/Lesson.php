@@ -6,9 +6,11 @@ use App\Enums\AcademicStatus;
 use App\Enums\LessonType;
 use Database\Factories\LessonFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -28,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property-read Module $module
+ * @property-read Collection<int, LessonProgress> $progressRecords
  */
 #[Fillable([
     'module_id',
@@ -52,6 +55,14 @@ class Lesson extends Model
     public function module(): BelongsTo
     {
         return $this->belongsTo(Module::class);
+    }
+
+    /**
+     * @return HasMany<LessonProgress, $this>
+     */
+    public function progressRecords(): HasMany
+    {
+        return $this->hasMany(LessonProgress::class);
     }
 
     /**

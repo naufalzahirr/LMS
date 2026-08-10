@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Enums\EnrollmentStatus;
 use Database\Factories\EnrollmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -21,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read LearningClass $learningClass
  * @property-read User $student
+ * @property-read Collection<int, LessonProgress> $lessonProgress
  */
 #[Fillable(['learning_class_id', 'student_id', 'status', 'enrolled_at', 'completed_at'])]
 class Enrollment extends Model
@@ -42,6 +45,14 @@ class Enrollment extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(User::class, 'student_id');
+    }
+
+    /**
+     * @return HasMany<LessonProgress, $this>
+     */
+    public function lessonProgress(): HasMany
+    {
+        return $this->hasMany(LessonProgress::class);
     }
 
     /**

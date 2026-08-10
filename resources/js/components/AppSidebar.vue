@@ -34,6 +34,7 @@ import { index as modulesIndex } from '@/routes/admin/modules';
 import { index as parentStudentsIndex } from '@/routes/admin/parent-students';
 import { index as programsIndex } from '@/routes/admin/programs';
 import { index as usersIndex } from '@/routes/admin/users';
+import { index as studentClassesIndex } from '@/routes/student/classes';
 import { index as tutorClassesIndex } from '@/routes/tutor/classes';
 import type { NavItem } from '@/types';
 
@@ -53,6 +54,14 @@ const mainNavItems = computed<NavItem[]>(() => {
             title: 'Users',
             href: usersIndex(),
             icon: UsersRound,
+        });
+    }
+
+    if (page.props.auth.roles.includes('Student')) {
+        items.push({
+            title: 'My Learning',
+            href: studentClassesIndex(),
+            icon: BookOpenCheck,
         });
     }
 

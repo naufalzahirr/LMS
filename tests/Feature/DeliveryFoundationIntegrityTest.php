@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\EnrollmentStatus;
+use App\Enums\LessonProgressStatus;
 use App\Enums\ParentRelationshipType;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\LearningClass;
+use App\Models\LessonProgress;
 use App\Models\ParentStudentRelationship;
 use App\Models\User;
 use Database\Seeders\AcademicSeeder;
@@ -171,6 +173,8 @@ class DeliveryFoundationIntegrityTest extends TestCase
             fn (Enrollment $enrollment): bool => $enrollment->status === EnrollmentStatus::Active,
         ));
         $this->assertDatabaseCount('parent_student_relationships', 1);
+        $this->assertSame(2, LessonProgress::query()->where('status', LessonProgressStatus::Completed)->count());
+        $this->assertSame(1, LessonProgress::query()->where('status', LessonProgressStatus::InProgress)->count());
     }
 
     private function userWithRole(string $role): User
