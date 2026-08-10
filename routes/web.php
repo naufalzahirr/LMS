@@ -14,11 +14,15 @@ use App\Http\Controllers\Admin\MasteryRuleController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\ParentStudentRelationshipController;
 use App\Http\Controllers\Admin\ProgramController;
+use App\Http\Controllers\Admin\ProgressReportController;
 use App\Http\Controllers\Admin\QuestionBankController;
 use App\Http\Controllers\Admin\QuestionController;
 use App\Http\Controllers\Admin\RemedialAssignmentController as AdminRemedialAssignmentController;
 use App\Http\Controllers\Admin\TutorAssignmentController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Parent\DashboardController as ParentDashboardController;
+use App\Http\Controllers\Parent\StudentController as ParentStudentController;
 use App\Http\Controllers\Student\AssessmentAnswerController as StudentAssessmentAnswerController;
 use App\Http\Controllers\Student\AssessmentAttemptController as StudentAssessmentAttemptController;
 use App\Http\Controllers\Student\AssessmentController as StudentAssessmentController;
@@ -27,6 +31,7 @@ use App\Http\Controllers\Student\LessonController as StudentLessonController;
 use App\Http\Controllers\Student\LessonProgressController as StudentLessonProgressController;
 use App\Http\Controllers\Student\RemedialAssignmentController as StudentRemedialAssignmentController;
 use App\Http\Controllers\Tutor\AssessmentAttemptController as TutorAssessmentAttemptController;
+use App\Http\Controllers\Tutor\ClassProgressReportController as TutorClassProgressReportController;
 use App\Http\Controllers\Tutor\LearningClassController as TutorLearningClassController;
 use App\Http\Controllers\Tutor\RemedialAssignmentController as TutorRemedialAssignmentController;
 use Illuminate\Support\Facades\Route;
@@ -34,7 +39,16 @@ use Illuminate\Support\Facades\Route;
 Route::inertia('/', 'Welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('parent/dashboard', ParentDashboardController::class)->name('parent.dashboard');
+    Route::get('parent/students/{student}', [ParentStudentController::class, 'show'])->name('parent.students.show');
+
+    Route::get('admin/reports/progress', [ProgressReportController::class, 'index'])
+        ->name('admin.reports.progress.index');
+    Route::get('admin/reports/classes/{learningClass}/progress.csv', [ProgressReportController::class, 'csv'])
+        ->name('admin.reports.classes.progress.csv');
+    Route::get('admin/reports/classes/{learningClass}', [ProgressReportController::class, 'show'])
+        ->name('admin.reports.classes.show');
 
     Route::resource('admin/users', UserController::class)
         ->except('show')
@@ -133,6 +147,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('tutor.classes.index');
     Route::get('tutor/classes/{learningClass}', [TutorLearningClassController::class, 'show'])
         ->name('tutor.classes.show');
+    Route::get('tutor/reports/classes/{learningClass}', [TutorClassProgressReportController::class, 'show'])
+        ->name('tutor.reports.classes.show');
     Route::get('tutor/classes/{learningClass}/assessments/{assignment}/attempts', [TutorAssessmentAttemptController::class, 'index'])
         ->name('tutor.class-assessment-attempts.index');
     Route::get('tutor/classes/{learningClass}/assessments/{assignment}/attempts/{attempt}/grade', [TutorAssessmentAttemptController::class, 'edit'])

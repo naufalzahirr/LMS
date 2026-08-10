@@ -197,18 +197,15 @@ class RemedialAssignmentService
             ))
             ->count();
         $hasAttemptRemaining = $attemptCount < $assignment->masteryRule->classAssessment->max_attempts;
-        StudentCompetencyProgress::query()->updateOrCreate(
-            [
-                'enrollment_id' => $assignment->enrollment_id,
-                'competency_id' => $assignment->competency_id,
-            ],
-            [
-                'status' => $hasAttemptRemaining
-                    ? StudentCompetencyStatus::ReadyForAssessment
-                    : StudentCompetencyStatus::NeedsRemedial,
-                'started_at' => now(),
-            ],
-        );
+        $progress = StudentCompetencyProgress::query()->firstOrNew([
+            'enrollment_id' => $assignment->enrollment_id,
+            'competency_id' => $assignment->competency_id,
+        ]);
+        $progress->status = $hasAttemptRemaining
+            ? StudentCompetencyStatus::ReadyForAssessment
+            : StudentCompetencyStatus::NeedsRemedial;
+        $progress->started_at ??= now();
+        $progress->save();
     }
 
     private function ensureAssigned(RemedialAssignment $assignment): void

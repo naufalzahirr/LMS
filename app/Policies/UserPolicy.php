@@ -6,6 +6,18 @@ use App\Models\User;
 
 class UserPolicy
 {
+    public function viewChildDashboard(User $user): bool
+    {
+        return $user->hasRole('Parent') && $user->hasPermissionTo('view-child-progress');
+    }
+
+    public function viewChildProgress(User $user, User $student): bool
+    {
+        return $this->viewChildDashboard($user)
+            && $student->hasRole('Student')
+            && $user->children()->whereKey($student->id)->exists();
+    }
+
     public function viewAny(User $user): bool
     {
         return $user->hasPermissionTo('manage-users');

@@ -3,6 +3,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import {
     BookOpen,
     BookOpenCheck,
+    ChartNoAxesCombined,
     CircleHelp,
     ClipboardCheck,
     Database,
@@ -50,7 +51,13 @@ const mainNavItems = computed<NavItem[]>(() => {
     const items: NavItem[] = [
         {
             title: 'Dashboard',
-            href: dashboard(),
+            href:
+                page.props.auth.roles.includes('Parent') &&
+                !page.props.auth.roles.some((role) =>
+                    ['Admin', 'Tutor', 'Student'].includes(role),
+                )
+                    ? '/parent/dashboard'
+                    : dashboard(),
             icon: LayoutGrid,
         },
     ];
@@ -76,6 +83,14 @@ const mainNavItems = computed<NavItem[]>(() => {
             title: 'Parent–students',
             href: parentStudentsIndex(),
             icon: UserRoundCog,
+        });
+    }
+
+    if (page.props.auth.permissions.includes('view-all-progress')) {
+        items.push({
+            title: 'Progress reports',
+            href: '/admin/reports/progress',
+            icon: ChartNoAxesCombined,
         });
     }
 

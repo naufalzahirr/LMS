@@ -2,6 +2,7 @@
 import { Head, Link } from '@inertiajs/vue3';
 import {
     ArrowLeft,
+    ChartNoAxesCombined,
     ClipboardCheck,
     LibraryBig,
     NotebookText,
@@ -56,9 +57,17 @@ defineOptions({
             <Heading
                 :title="learningClass.name"
                 :description="`${learningClass.program} / ${learningClass.course}`"
-            /><Button variant="outline" as-child
-                ><Link :href="index()"><ArrowLeft /> My classes</Link></Button
-            >
+            />
+            <div class="flex flex-wrap gap-2">
+                <Button variant="outline" as-child>
+                    <Link :href="`/tutor/reports/classes/${learningClass.id}`">
+                        <ChartNoAxesCombined /> Progress report
+                    </Link>
+                </Button>
+                <Button variant="outline" as-child>
+                    <Link :href="index()"><ArrowLeft /> My classes</Link>
+                </Button>
+            </div>
         </div>
         <Card
             ><CardContent class="grid gap-5 pt-2 sm:grid-cols-2 lg:grid-cols-4"

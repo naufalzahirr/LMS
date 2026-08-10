@@ -19,6 +19,7 @@ class ClassAssessmentService
     public function assign(LearningClass $learningClass, Assessment $assessment, array $data): LearningClassAssessment
     {
         return DB::transaction(function () use ($learningClass, $assessment, $data): LearningClassAssessment {
+            $this->ensureValidAttemptLimit($data['max_attempts']);
             $assessment->loadMissing('competency:id,course_id');
 
             if ($assessment->status !== AssessmentStatus::Published) {
@@ -41,6 +42,8 @@ class ClassAssessmentService
     public function update(LearningClassAssessment $assignment, array $data): LearningClassAssessment
     {
         return DB::transaction(function () use ($assignment, $data): LearningClassAssessment {
+            $this->ensureValidAttemptLimit($data['max_attempts']);
+
             $highestUsedAttempt = (int) $assignment->attempts()->max('attempt_number');
 
             if ($data['max_attempts'] < $highestUsedAttempt) {
@@ -68,6 +71,12 @@ class ClassAssessmentService
     public function unassign(LearningClassAssessment $assignment): void
     {
         DB::transaction(function () use ($assignment): void {
+            if ($assignment->masteryRule()->exists()) {
+                throw ValidationException::withMessages([
+                    'assessment_assignment' => __('This assessment is configured as a mastery assessment for this class. Remove or deactivate the mastery configuration first.'),
+                ]);
+            }
+
             if ($assignment->attempts()->exists()) {
                 throw ValidationException::withMessages([
                     'assessment_assignment' => __('This assessment assignment cannot be removed after students have started attempts. Set it inactive instead.'),
@@ -76,5 +85,14 @@ class ClassAssessmentService
 
             $assignment->delete();
         });
+    }
+
+    private function ensureValidAttemptLimit(int $maxAttempts): void
+    {
+        if ($maxAttempts < 1) {
+            throw ValidationException::withMessages([
+                'max_attempts' => __('Maximum attempts must be at least 1.'),
+            ]);
+        }
     }
 }

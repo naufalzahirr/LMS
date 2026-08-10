@@ -12,6 +12,7 @@ use App\Enums\StudentCompetencyStatus;
 use App\Models\AssessmentAttempt;
 use App\Models\Competency;
 use App\Models\Course;
+use App\Models\LearningClassAssessment;
 use App\Models\Lesson;
 use App\Models\MasteryRule;
 use App\Models\Module;
@@ -150,6 +151,8 @@ class MasteryLearningWorkflowTest extends TestCase
         $failed = $this->submitMultipleChoice($context, false);
         $progress = $this->progress($context);
         $remedial = RemedialAssignment::query()->firstOrFail();
+        $originalStartedAt = now()->subMonths(2)->startOfSecond();
+        $progress->update(['started_at' => $originalStartedAt]);
 
         $this->assertSame('0.00', $failed->percentage);
         $this->assertSame(StudentCompetencyStatus::NeedsRemedial, $progress->status);
@@ -167,7 +170,9 @@ class MasteryLearningWorkflowTest extends TestCase
 
         $item = $remedial->lessons()->firstOrFail();
         app(RemedialAssignmentService::class)->completeLesson($context['student'], $remedial, $item);
-        $this->assertSame(StudentCompetencyStatus::ReadyForAssessment, $this->progress($context)->status);
+        $progress = $this->progress($context);
+        $this->assertSame(StudentCompetencyStatus::ReadyForAssessment, $progress->status);
+        $this->assertTrue($progress->started_at?->equalTo($originalStartedAt));
 
         $passed = $this->submitMultipleChoice($context, true);
         $progress = $this->progress($context);
@@ -212,6 +217,59 @@ class MasteryLearningWorkflowTest extends TestCase
         $service->update($context['assignment'], $this->assignmentData(2));
 
         $this->assertSame(StudentCompetencyStatus::ReadyForAssessment, $this->progress($context)->status);
+    }
+
+    public function test_attempt_limit_is_never_below_one_or_the_highest_used_attempt(): void
+    {
+        $context = $this->masteryContext(['max_attempts' => 3]);
+        $service = app(ClassAssessmentService::class);
+        $otherAssessment = $context['assessment']->replicate(['code']);
+        $otherAssessment->code = 'OTHER-MASTERY';
+        $otherAssessment->save();
+
+        $this->expectValidation(fn () => $service->update($context['assignment'], $this->assignmentData(0)));
+        $this->expectValidation(fn () => $service->assign(
+            $context['class'],
+            $otherAssessment,
+            ['assessment_id' => $otherAssessment->id, ...$this->assignmentData(0)],
+        ));
+        AssessmentAttempt::factory()->create([
+            'learning_class_assessment_id' => $context['assignment']->id,
+            'enrollment_id' => $context['enrollment']->id,
+            'attempt_number' => 2,
+        ]);
+        $this->expectValidation(fn () => $service->update($context['assignment'], $this->assignmentData(1)));
+
+        $service->update($context['assignment'], $this->assignmentData(2));
+        $this->assertSame(2, $context['assignment']->fresh()->max_attempts);
+    }
+
+    public function test_unassign_blocks_mastery_rules_and_attempt_history_but_allows_unused_assignments(): void
+    {
+        $mastery = $this->masteryContext();
+        $service = app(ClassAssessmentService::class);
+
+        try {
+            $service->unassign($mastery['assignment']);
+            $this->fail('Expected the mastery assignment to be protected.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'This assessment is configured as a mastery assessment for this class. Remove or deactivate the mastery configuration first.',
+                $exception->errors()['assessment_assignment'][0],
+            );
+        }
+
+        $used = $this->makeAssessmentContext([QuestionType::MultipleChoice]);
+        AssessmentAttempt::factory()->create([
+            'learning_class_assessment_id' => $used['assignment']->id,
+            'enrollment_id' => $used['enrollment']->id,
+        ]);
+        $this->expectValidation(fn () => $service->unassign($used['assignment']));
+
+        $unused = LearningClassAssessment::factory()->create();
+        $unusedId = $unused->id;
+        $service->unassign($unused);
+        $this->assertDatabaseMissing('learning_class_assessments', ['id' => $unusedId]);
     }
 
     public function test_remedial_visibility_is_limited_to_owner_admin_and_exact_class_tutor(): void

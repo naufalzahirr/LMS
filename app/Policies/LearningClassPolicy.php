@@ -48,6 +48,19 @@ class LearningClassPolicy
         return $this->isAdmin($user) && $user->hasPermissionTo('manage-tutor-assignments');
     }
 
+    public function viewAllProgressReports(User $user): bool
+    {
+        return $this->isAdmin($user) && $user->hasPermissionTo('view-all-progress');
+    }
+
+    public function viewProgressReport(User $user, LearningClass $learningClass): bool
+    {
+        return $this->viewAllProgressReports($user)
+            || ($user->hasRole('Tutor')
+                && $user->hasPermissionTo('view-class-progress')
+                && $user->teachingClasses()->whereKey($learningClass->id)->exists());
+    }
+
     private function isAdmin(User $user): bool
     {
         return $user->hasRole('Admin');
