@@ -25,6 +25,8 @@ use Illuminate\Support\Carbon;
  * @property-read User $student
  * @property-read Collection<int, LessonProgress> $lessonProgress
  * @property-read Collection<int, AssessmentAttempt> $assessmentAttempts
+ * @property-read Collection<int, StudentCompetencyProgress> $competencyProgress
+ * @property-read Collection<int, RemedialAssignment> $remedialAssignments
  */
 #[Fillable(['learning_class_id', 'student_id', 'status', 'enrolled_at', 'completed_at'])]
 class Enrollment extends Model
@@ -60,6 +62,18 @@ class Enrollment extends Model
     public function assessmentAttempts(): HasMany
     {
         return $this->hasMany(AssessmentAttempt::class);
+    }
+
+    /** @return HasMany<StudentCompetencyProgress, $this> */
+    public function competencyProgress(): HasMany
+    {
+        return $this->hasMany(StudentCompetencyProgress::class);
+    }
+
+    /** @return HasMany<RemedialAssignment, $this> */
+    public function remedialAssignments(): HasMany
+    {
+        return $this->hasMany(RemedialAssignment::class);
     }
 
     /**

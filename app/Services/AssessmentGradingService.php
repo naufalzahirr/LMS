@@ -14,6 +14,8 @@ use Illuminate\Validation\ValidationException;
 
 class AssessmentGradingService
 {
+    public function __construct(private readonly MasteryEvaluationService $masteryEvaluation) {}
+
     /**
      * @param  array<int, array{attempt_question_id: int, manual_score: string, feedback: string|null}>  $grades
      */
@@ -101,6 +103,7 @@ class AssessmentGradingService
                     : $this->decimal(($earnedPoints / (float) $lockedAttempt->max_points) * 100),
                 'graded_at' => now(),
             ]);
+            $this->masteryEvaluation->evaluate($lockedAttempt->refresh());
 
             return $lockedAttempt->refresh();
         });

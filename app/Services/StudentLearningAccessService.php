@@ -12,6 +12,8 @@ use App\Models\User;
 
 class StudentLearningAccessService
 {
+    public function __construct(private readonly CompetencyAccessService $competencyAccess) {}
+
     public function enrollmentForViewing(User $user, LearningClass $learningClass): ?Enrollment
     {
         if (! $this->mayViewClass($user, $learningClass)) {
@@ -70,6 +72,7 @@ class StudentLearningAccessService
             && $enrollment->status === EnrollmentStatus::Active
             && $learningClass->status === LearningClassStatus::Active
             && $this->mayViewClass($user, $learningClass)
-            && $this->lessonBelongsToActiveCourse($lesson, $learningClass);
+            && $this->lessonBelongsToActiveCourse($lesson, $learningClass)
+            && $this->competencyAccess->mayOpenLesson($enrollment, $lesson);
     }
 }

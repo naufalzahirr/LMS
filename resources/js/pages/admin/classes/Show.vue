@@ -16,6 +16,8 @@ import ClassAssessmentManager from '@/components/admin/ClassAssessmentManager.vu
 import AlertError from '@/components/AlertError.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
+import MasteryConfiguration from '@/components/mastery/MasteryConfiguration.vue';
+import MasteryHeatmap from '@/components/mastery/MasteryHeatmap.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,6 +75,11 @@ defineProps<{
     assessmentOptions: ClassAssessmentOption[];
     classAssessmentStatuses: SelectOption<ClassAssessmentStatus>[];
     assessmentFeedbackModes: SelectOption<AssessmentFeedbackMode>[];
+    masteryConfiguration: InstanceType<
+        typeof MasteryConfiguration
+    >['$props']['items'];
+    masteryRuleStatuses: { value: string; label: string }[];
+    masteryHeatmap: InstanceType<typeof MasteryHeatmap>['$props']['heatmap'];
 }>();
 
 defineOptions({
@@ -308,6 +315,11 @@ function unassignTutor(classId: number, tutor: DeliveryUserOption): void {
                 </CardContent>
             </Card>
         </div>
+        <MasteryConfiguration
+            :items="masteryConfiguration"
+            :statuses="masteryRuleStatuses"
+        />
+        <MasteryHeatmap :heatmap="masteryHeatmap" />
         <Card class="gap-0 overflow-hidden py-0">
             <CardHeader class="py-5"
                 ><CardTitle>Enrollment history</CardTitle></CardHeader

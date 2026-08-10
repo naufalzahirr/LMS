@@ -5,15 +5,18 @@ use App\Http\Controllers\Admin\AssessmentController;
 use App\Http\Controllers\Admin\AssessmentQuestionController;
 use App\Http\Controllers\Admin\ClassAssessmentController;
 use App\Http\Controllers\Admin\CompetencyController;
+use App\Http\Controllers\Admin\CompetencyPrerequisiteController;
 use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\EnrollmentController;
 use App\Http\Controllers\Admin\LearningClassController;
 use App\Http\Controllers\Admin\LessonController;
+use App\Http\Controllers\Admin\MasteryRuleController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\ParentStudentRelationshipController;
 use App\Http\Controllers\Admin\ProgramController;
 use App\Http\Controllers\Admin\QuestionBankController;
 use App\Http\Controllers\Admin\QuestionController;
+use App\Http\Controllers\Admin\RemedialAssignmentController as AdminRemedialAssignmentController;
 use App\Http\Controllers\Admin\TutorAssignmentController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Student\AssessmentAnswerController as StudentAssessmentAnswerController;
@@ -22,8 +25,10 @@ use App\Http\Controllers\Student\AssessmentController as StudentAssessmentContro
 use App\Http\Controllers\Student\LearningClassController as StudentLearningClassController;
 use App\Http\Controllers\Student\LessonController as StudentLessonController;
 use App\Http\Controllers\Student\LessonProgressController as StudentLessonProgressController;
+use App\Http\Controllers\Student\RemedialAssignmentController as StudentRemedialAssignmentController;
 use App\Http\Controllers\Tutor\AssessmentAttemptController as TutorAssessmentAttemptController;
 use App\Http\Controllers\Tutor\LearningClassController as TutorLearningClassController;
+use App\Http\Controllers\Tutor\RemedialAssignmentController as TutorRemedialAssignmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -46,6 +51,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('admin/competencies', CompetencyController::class)
         ->except('show')
         ->names('admin.competencies');
+    Route::post('admin/competencies/{competency}/prerequisites', [CompetencyPrerequisiteController::class, 'store'])
+        ->name('admin.competencies.prerequisites.store');
+    Route::delete('admin/competencies/{competency}/prerequisites/{prerequisite}', [CompetencyPrerequisiteController::class, 'destroy'])
+        ->name('admin.competencies.prerequisites.destroy');
 
     Route::resource('admin/modules', ModuleController::class)
         ->except('show')
@@ -92,6 +101,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('admin.classes.assessments.update');
     Route::delete('admin/classes/{learningClass}/assessments/{assignment}', [ClassAssessmentController::class, 'destroy'])
         ->name('admin.classes.assessments.destroy');
+    Route::put('admin/classes/{learningClass}/competencies/{competency}/mastery-rule', [MasteryRuleController::class, 'update'])
+        ->name('admin.classes.mastery-rules.update');
     Route::get('admin/classes/{learningClass}/assessments/{assignment}/attempts', [AdminAssessmentAttemptController::class, 'index'])
         ->name('admin.class-assessment-attempts.index');
     Route::get('admin/classes/{learningClass}/assessments/{assignment}/attempts/{attempt}/grade', [AdminAssessmentAttemptController::class, 'edit'])
@@ -101,6 +112,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('admin/classes', LearningClassController::class)
         ->parameters(['classes' => 'learningClass'])
         ->names('admin.classes');
+    Route::get('admin/remedials/{remedialAssignment}', [AdminRemedialAssignmentController::class, 'show'])->name('admin.remedials.show');
+    Route::patch('admin/remedials/{remedialAssignment}', [AdminRemedialAssignmentController::class, 'update'])->name('admin.remedials.update');
+    Route::patch('admin/remedials/{remedialAssignment}/complete', [AdminRemedialAssignmentController::class, 'complete'])->name('admin.remedials.complete');
+    Route::post('admin/remedials/{remedialAssignment}/lessons', [AdminRemedialAssignmentController::class, 'addLesson'])->name('admin.remedial-lessons.store');
+    Route::delete('admin/remedials/{remedialAssignment}/lessons/{item}', [AdminRemedialAssignmentController::class, 'removeLesson'])->name('admin.remedial-lessons.destroy');
 
     Route::resource('admin/parent-students', ParentStudentRelationshipController::class)
         ->only(['index', 'create', 'store', 'destroy'])
@@ -123,6 +139,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('tutor.class-assessment-attempts.edit');
     Route::patch('tutor/classes/{learningClass}/assessments/{assignment}/attempts/{attempt}', [TutorAssessmentAttemptController::class, 'update'])
         ->name('tutor.class-assessment-attempts.update');
+    Route::get('tutor/remedials/{remedialAssignment}', [TutorRemedialAssignmentController::class, 'show'])->name('tutor.remedials.show');
+    Route::patch('tutor/remedials/{remedialAssignment}', [TutorRemedialAssignmentController::class, 'update'])->name('tutor.remedials.update');
+    Route::patch('tutor/remedials/{remedialAssignment}/complete', [TutorRemedialAssignmentController::class, 'complete'])->name('tutor.remedials.complete');
+    Route::post('tutor/remedials/{remedialAssignment}/lessons', [TutorRemedialAssignmentController::class, 'addLesson'])->name('tutor.remedial-lessons.store');
+    Route::delete('tutor/remedials/{remedialAssignment}/lessons/{item}', [TutorRemedialAssignmentController::class, 'removeLesson'])->name('tutor.remedial-lessons.destroy');
 
     Route::get('student/classes', [StudentLearningClassController::class, 'index'])
         ->name('student.classes.index');
@@ -142,6 +163,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('student.assessment-attempts.submit');
     Route::get('student/assessment-attempts/{attempt}/result', [StudentAssessmentAttemptController::class, 'result'])
         ->name('student.assessment-attempts.result');
+    Route::get('student/remedials/{remedialAssignment}', [StudentRemedialAssignmentController::class, 'show'])
+        ->name('student.remedials.show');
+    Route::patch('student/remedials/{remedialAssignment}/lessons/{item}/complete', [StudentRemedialAssignmentController::class, 'completeLesson'])
+        ->name('student.remedial-lessons.complete');
     Route::get('student/classes/{learningClass}/lessons/{lesson}', [StudentLessonController::class, 'show'])
         ->name('student.lessons.show');
     Route::get('student/classes/{learningClass}/lessons/{lesson}/file', [StudentLessonController::class, 'file'])

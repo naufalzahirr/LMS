@@ -31,6 +31,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, User> $students
  * @property-read Collection<int, User> $tutors
  * @property-read Collection<int, LearningClassAssessment> $assessmentAssignments
+ * @property-read Collection<int, MasteryRule> $masteryRules
  * @property-read Collection<int, Assessment> $assessments
  * @property-read int|null $enrollments_count
  * @property-read int|null $students_count
@@ -90,6 +91,12 @@ class LearningClass extends Model
         return $this->belongsToMany(Assessment::class, 'learning_class_assessments')
             ->withPivot(['id', 'opens_at', 'closes_at', 'max_attempts', 'status', 'feedback_mode'])
             ->withTimestamps();
+    }
+
+    /** @return HasMany<MasteryRule, $this> */
+    public function masteryRules(): HasMany
+    {
+        return $this->hasMany(MasteryRule::class);
     }
 
     /**

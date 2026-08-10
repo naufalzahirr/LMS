@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Form, Head, Link } from '@inertiajs/vue3';
+import { Form, Head, Link, router } from '@inertiajs/vue3';
 import CompetencyController from '@/actions/App/Http/Controllers/Admin/CompetencyController';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -38,7 +38,16 @@ defineProps<{
     competency: EditableCompetency;
     courses: CourseOption[];
     statuses: AcademicStatusOption[];
+    prerequisites: { id: number; name: string; destroy_url: string }[];
+    prerequisiteOptions: { id: number; name: string }[];
+    prerequisiteStoreUrl: string;
 }>();
+
+function removePrerequisite(item: { name: string; destroy_url: string }): void {
+    if (window.confirm(`Remove ${item.name} as a prerequisite?`)) {
+        router.delete(item.destroy_url, { preserveScroll: true });
+    }
+}
 
 defineOptions({
     layout: {
@@ -188,6 +197,70 @@ defineOptions({
                         </Button>
                     </div>
                 </Form>
+            </CardContent>
+        </Card>
+
+        <Card class="max-w-2xl">
+            <CardHeader>
+                <CardTitle>Prerequisites</CardTitle>
+                <p class="text-sm text-muted-foreground">
+                    Students must master these competencies before this one
+                    unlocks. Cyclic dependencies are rejected automatically.
+                </p>
+            </CardHeader>
+            <CardContent class="space-y-5">
+                <Form
+                    v-if="prerequisiteOptions.length"
+                    :action="prerequisiteStoreUrl"
+                    method="post"
+                    class="flex items-end gap-3"
+                    v-slot="{ errors, processing }"
+                >
+                    <div class="grid flex-1 gap-2">
+                        <Label for="prerequisite_id">Add prerequisite</Label>
+                        <Select name="prerequisite_id" required>
+                            <SelectTrigger id="prerequisite_id" class="w-full">
+                                <SelectValue
+                                    placeholder="Choose a competency"
+                                />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="item in prerequisiteOptions"
+                                    :key="item.id"
+                                    :value="item.id.toString()"
+                                >
+                                    {{ item.name }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError :message="errors.prerequisite_id" />
+                    </div>
+                    <Button type="submit" :disabled="processing">Add</Button>
+                </Form>
+                <div class="divide-y rounded-lg border">
+                    <div
+                        v-for="item in prerequisites"
+                        :key="item.id"
+                        class="flex items-center justify-between gap-3 p-3"
+                    >
+                        <span class="font-medium">{{ item.name }}</span>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            @click="removePrerequisite(item)"
+                        >
+                            Remove
+                        </Button>
+                    </div>
+                    <p
+                        v-if="!prerequisites.length"
+                        class="p-4 text-sm text-muted-foreground"
+                    >
+                        This competency has no prerequisites.
+                    </p>
+                </div>
             </CardContent>
         </Card>
     </div>

@@ -106,6 +106,7 @@ class CompetencyController extends Controller
     public function edit(Competency $competency): Response
     {
         $this->authorize('update', $competency);
+        $competency->load('prerequisites:id,name,course_id');
 
         return Inertia::render('admin/competencies/Edit', [
             'competency' => [
@@ -121,6 +122,21 @@ class CompetencyController extends Controller
             ],
             'courses' => $this->courses(),
             'statuses' => AcademicStatus::options(),
+            'prerequisites' => $competency->prerequisites->map(fn (Competency $item): array => [
+                'id' => $item->id,
+                'name' => $item->name,
+                'destroy_url' => route('admin.competencies.prerequisites.destroy', [$competency, $item]),
+            ])->all(),
+            'prerequisiteOptions' => Competency::query()
+                ->where('course_id', $competency->course_id)
+                ->whereKeyNot($competency->id)
+                ->whereNotIn('id', $competency->prerequisites->pluck('id'))
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (Competency $item): array => ['id' => $item->id, 'name' => $item->name])
+                ->all(),
+            'prerequisiteStoreUrl' => route('admin.competencies.prerequisites.store', $competency),
         ]);
     }
 

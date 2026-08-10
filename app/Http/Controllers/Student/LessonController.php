@@ -10,8 +10,10 @@ use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\Module;
 use App\Models\User;
+use App\Services\CompetencyAccessService;
 use App\Services\LearningProgressQueryService;
 use App\Services\LessonProgressService;
+use App\Services\MasteryProgressQueryService;
 use App\Services\StudentLearningAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -26,6 +28,8 @@ class LessonController extends Controller
         private readonly StudentLearningAccessService $access,
         private readonly LessonProgressService $progressService,
         private readonly LearningProgressQueryService $progressQuery,
+        private readonly CompetencyAccessService $competencyAccess,
+        private readonly MasteryProgressQueryService $masteryProgress,
     ) {}
 
     public function show(Request $request, LearningClass $learningClass, Lesson $lesson): Response
@@ -41,7 +45,10 @@ class LessonController extends Controller
             ->flatMap(fn (Competency $competency) => $competency->modules)
             ->flatMap(fn (Module $module) => $module->lessons)
             ->values();
-        $lessonIndex = $lessons->search(fn (Lesson $candidate): bool => $candidate->is($lesson));
+        $masteryStates = collect($this->masteryProgress->studentCompetencies($learningClass, $enrollment))->keyBy('id');
+        $accessibleLessons = $lessons->filter(fn (Lesson $candidate): bool => (bool) ($masteryStates
+            ->get($candidate->module->competency_id)['unlocked'] ?? true))->values();
+        $lessonIndex = $accessibleLessons->search(fn (Lesson $candidate): bool => $candidate->is($lesson));
         abort_if($lessonIndex === false, 403);
         $allProgress = LessonProgress::query()
             ->where('enrollment_id', $enrollment->id)
@@ -74,25 +81,40 @@ class LessonController extends Controller
                 'progress_status' => $progress?->status->value ?? 'not_started',
             ],
             'canMutate' => $canMutate,
-            'previousLesson' => $lessonIndex > 0 ? $this->lessonLink($learningClass, $lessons[$lessonIndex - 1]) : null,
-            'nextLesson' => $lessonIndex < $lessons->count() - 1 ? $this->lessonLink($learningClass, $lessons[$lessonIndex + 1]) : null,
+            'previousLesson' => $lessonIndex > 0 ? $this->lessonLink($learningClass, $accessibleLessons[$lessonIndex - 1]) : null,
+            'nextLesson' => $lessonIndex < $accessibleLessons->count() - 1 ? $this->lessonLink($learningClass, $accessibleLessons[$lessonIndex + 1]) : null,
             'competencies' => $learningClass->course->competencies->map(
-                fn (Competency $competency): array => [
-                    'id' => $competency->id,
-                    'name' => $competency->name,
-                    'modules' => $competency->modules->map(
-                        fn (Module $module): array => [
-                            'id' => $module->id,
-                            'name' => $module->name,
-                            'lessons' => $module->lessons->map(fn (Lesson $item): array => [
-                                'id' => $item->id,
-                                'title' => $item->title,
-                                'progress_status' => $allProgress->get($item->id)?->status->value ?? 'not_started',
-                                'url' => route('student.lessons.show', [$learningClass, $item]),
-                            ])->values()->all(),
-                        ],
-                    )->values()->all(),
-                ],
+                function (Competency $competency) use ($masteryStates, $allProgress, $learningClass): array {
+                    $mastery = $masteryStates->get($competency->id);
+                    $unlocked = (bool) ($mastery['unlocked'] ?? true);
+
+                    return [
+                        'id' => $competency->id,
+                        'name' => $competency->name,
+                        'unlocked' => $unlocked,
+                        'mastery_status' => $mastery['status'] ?? 'learning',
+                        'prerequisites' => $mastery['prerequisites'] ?? [],
+                        'missing_prerequisites' => $mastery['missing_prerequisites'] ?? [],
+                        'latest_score' => $mastery['latest_score'] ?? null,
+                        'best_score' => $mastery['best_score'] ?? null,
+                        'required_score' => $mastery['required_score'] ?? null,
+                        'remedial_url' => ($mastery['remedial_assignment_id'] ?? null) === null
+                            ? null
+                            : route('student.remedials.show', $mastery['remedial_assignment_id']),
+                        'modules' => $competency->modules->map(
+                            fn (Module $module): array => [
+                                'id' => $module->id,
+                                'name' => $module->name,
+                                'lessons' => $module->lessons->map(fn (Lesson $item): array => [
+                                    'id' => $item->id,
+                                    'title' => $item->title,
+                                    'progress_status' => $allProgress->get($item->id)?->status->value ?? 'not_started',
+                                    'url' => $unlocked ? route('student.lessons.show', [$learningClass, $item]) : null,
+                                ])->values()->all(),
+                            ],
+                        )->values()->all(),
+                    ];
+                },
             )->values()->all(),
         ]);
     }
@@ -122,6 +144,7 @@ class LessonController extends Controller
         abort_unless($enrollment instanceof Enrollment, 403);
         abort_unless($this->access->lessonBelongsToActiveCourse($lesson, $learningClass), 403);
         $lesson->load('module.competency');
+        abort_unless($this->competencyAccess->mayOpenLesson($enrollment, $lesson), 403);
 
         return [$user, $enrollment];
     }

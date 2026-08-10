@@ -18,6 +18,8 @@ use App\Models\LearningClassAssessment;
 
 class StudentAssessmentPayloadService
 {
+    public function __construct(private readonly CompetencyAccessService $competencyAccess) {}
+
     /** @return array<int, array<string, mixed>> */
     public function assignmentsForEnrollment(Enrollment $enrollment): array
     {
@@ -169,8 +171,10 @@ class StudentAssessmentPayloadService
             fn (AssessmentAttempt $attempt): bool => $attempt->status === AssessmentAttemptStatus::InProgress,
         );
         $usedAttempts = $assignment->attempts->count();
-        $canStart = $this->canStart($enrollment, $assignment, $usedAttempts);
-        $state = $this->availabilityState($enrollment, $assignment, $usedAttempts, $inProgress);
+        $mastery = $this->competencyAccess->masteryAssessmentState($enrollment, $assignment);
+        $canStart = $this->canStart($enrollment, $assignment, $usedAttempts)
+            && ($mastery === null || $mastery['can_start'] === true);
+        $state = $this->availabilityState($enrollment, $assignment, $usedAttempts, $inProgress, $mastery);
 
         return [
             'id' => $assignment->id,
@@ -191,6 +195,7 @@ class StudentAssessmentPayloadService
             'in_progress_url' => $inProgress instanceof AssessmentAttempt
                 ? route('student.assessment-attempts.show', $inProgress)
                 : null,
+            'mastery' => $mastery,
         ];
     }
 
@@ -207,11 +212,13 @@ class StudentAssessmentPayloadService
             && $usedAttempts < $assignment->max_attempts;
     }
 
+    /** @param array<string, mixed>|null $mastery */
     private function availabilityState(
         Enrollment $enrollment,
         LearningClassAssessment $assignment,
         int $usedAttempts,
         ?AssessmentAttempt $inProgress,
+        ?array $mastery,
     ): string {
         if ($inProgress instanceof AssessmentAttempt) {
             return 'In Progress';
@@ -223,6 +230,15 @@ class StudentAssessmentPayloadService
 
         if ($assignment->closes_at !== null && $assignment->closes_at->isPast()) {
             return 'Closed';
+        }
+
+        if ($mastery !== null && $mastery['can_start'] !== true) {
+            return match ($mastery['status']) {
+                'locked' => 'Prerequisites Locked',
+                'needs_remedial' => 'Remedial Required',
+                'mastered' => 'Mastered',
+                default => 'Learning Incomplete',
+            };
         }
 
         if ($usedAttempts >= $assignment->max_attempts) {
@@ -239,7 +255,10 @@ class StudentAssessmentPayloadService
             return 'Graded';
         }
 
-        return $this->canStart($enrollment, $assignment, $usedAttempts) ? 'Available' : 'Closed';
+        return $this->canStart($enrollment, $assignment, $usedAttempts)
+            && ($mastery === null || $mastery['can_start'] === true)
+                ? 'Available'
+                : 'Closed';
     }
 
     /** @return array<string, mixed> */

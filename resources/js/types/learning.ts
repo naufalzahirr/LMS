@@ -30,7 +30,7 @@ export type PlayerLesson = {
     lesson_type: string;
     duration_minutes: number | null;
     progress_status: LessonProgressStatus;
-    url: string;
+    url: string | null;
 };
 
 export type PlayerModule = {
@@ -44,5 +44,18 @@ export type PlayerCompetency = {
     id: number;
     name: string;
     description?: string | null;
+    unlocked: boolean;
+    mastery_status:
+        | 'locked'
+        | 'learning'
+        | 'ready_for_assessment'
+        | 'needs_remedial'
+        | 'mastered';
+    prerequisites: string[];
+    missing_prerequisites: string[];
+    latest_score: string | null;
+    best_score: string | null;
+    required_score: string | null;
+    remedial_url: string | null;
     modules: PlayerModule[];
 };

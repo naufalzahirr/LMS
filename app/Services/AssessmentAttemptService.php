@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AcademicStatus;
 use App\Enums\AssessmentAttemptStatus;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
@@ -14,6 +15,7 @@ use App\Models\AssessmentAttemptQuestion;
 use App\Models\AssessmentQuestion;
 use App\Models\Enrollment;
 use App\Models\LearningClassAssessment;
+use App\Models\Question;
 use App\Models\QuestionAcceptedAnswer;
 use App\Models\QuestionOption;
 use App\Models\User;
@@ -23,6 +25,12 @@ use Illuminate\Validation\ValidationException;
 
 class AssessmentAttemptService
 {
+    public function __construct(
+        private readonly QuestionService $questionService,
+        private readonly CompetencyAccessService $competencyAccess,
+        private readonly MasteryEvaluationService $masteryEvaluation,
+    ) {}
+
     public function startAttempt(
         User $student,
         Enrollment $enrollment,
@@ -47,13 +55,15 @@ class AssessmentAttemptService
                 }
 
                 $this->ensureWindowIsOpen($lockedAssignment, true);
-                $lockedAssignment->loadMissing('assessment:id,status,shuffle_questions');
+                $lockedAssignment->loadMissing('assessment:id,competency_id,status,shuffle_questions');
 
                 if ($lockedAssignment->assessment->status !== AssessmentStatus::Published) {
                     throw ValidationException::withMessages([
                         'assessment' => __('This assessment is not available for new attempts.'),
                     ]);
                 }
+
+                $this->competencyAccess->ensureMasteryAssessmentMayStart($lockedEnrollment, $lockedAssignment);
 
                 $usedAttempts = AssessmentAttempt::query()
                     ->where('enrollment_id', $lockedEnrollment->id)
@@ -68,7 +78,6 @@ class AssessmentAttemptService
 
                 $composition = AssessmentQuestion::query()
                     ->where('assessment_id', $lockedAssignment->assessment_id)
-                    ->with(['question.options', 'question.acceptedAnswers'])
                     ->orderBy('sort_order')
                     ->orderBy('id')
                     ->get();
@@ -76,6 +85,27 @@ class AssessmentAttemptService
                 if ($composition->isEmpty()) {
                     throw ValidationException::withMessages([
                         'assessment' => __('This assessment has no questions available.'),
+                    ]);
+                }
+
+                $questions = Question::query()
+                    ->with(['options', 'acceptedAnswers'])
+                    ->whereIn('id', $composition->pluck('question_id'))
+                    ->get()
+                    ->keyBy('id');
+                $validComposition = $composition->every(function (AssessmentQuestion $item) use ($lockedAssignment, $questions): bool {
+                    $question = $questions->get($item->question_id);
+
+                    return $question instanceof Question
+                        && $question->status === AcademicStatus::Active
+                        && $question->competency_id === $lockedAssignment->assessment->competency_id
+                        && (float) $item->points > 0
+                        && $this->questionService->hasValidAnswerKey($question);
+                });
+
+                if (! $validComposition) {
+                    throw ValidationException::withMessages([
+                        'assessment' => __('This assessment is temporarily unavailable because its question configuration is no longer valid.'),
                     ]);
                 }
 
@@ -93,7 +123,14 @@ class AssessmentAttemptService
                 ]);
 
                 foreach ($composition->values() as $index => $item) {
-                    $question = $item->question;
+                    $question = $questions->get($item->question_id);
+
+                    if (! $question instanceof Question) {
+                        throw ValidationException::withMessages([
+                            'assessment' => __('This assessment is temporarily unavailable because its question configuration is no longer valid.'),
+                        ]);
+                    }
+
                     $snapshot = $attempt->attemptQuestions()->create([
                         'source_question_id' => $question->id,
                         'question_type' => $question->question_type,
@@ -196,6 +233,10 @@ class AssessmentAttemptService
             }
 
             $lockedAttempt->update($attributes);
+
+            if ($lockedAttempt->status === AssessmentAttemptStatus::Graded) {
+                $this->masteryEvaluation->evaluate($lockedAttempt->refresh());
+            }
 
             return $lockedAttempt->refresh();
         });

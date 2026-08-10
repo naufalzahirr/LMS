@@ -2,23 +2,30 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\AcademicStatus;
 use App\Enums\AssessmentFeedbackMode;
+use App\Enums\AssessmentPurpose;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
 use App\Enums\EnrollmentStatus;
 use App\Enums\LearningClassStatus;
+use App\Enums\MasteryRuleStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreLearningClassRequest;
 use App\Http\Requests\Admin\UpdateLearningClassRequest;
 use App\Models\Assessment;
+use App\Models\Competency;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\LearningClass;
 use App\Models\LearningClassAssessment;
+use App\Models\Lesson;
+use App\Models\Module;
 use App\Models\Program;
 use App\Models\User;
 use App\Services\LearningClassService;
 use App\Services\LearningProgressQueryService;
+use App\Services\MasteryProgressQueryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -29,6 +36,7 @@ class LearningClassController extends Controller
     public function __construct(
         private readonly LearningClassService $learningClassService,
         private readonly LearningProgressQueryService $progressQuery,
+        private readonly MasteryProgressQueryService $masteryProgress,
     ) {}
 
     public function index(Request $request): Response
@@ -187,6 +195,9 @@ class LearningClassController extends Controller
                 ])->all(),
             'classAssessmentStatuses' => ClassAssessmentStatus::options(),
             'assessmentFeedbackModes' => AssessmentFeedbackMode::options(),
+            'masteryConfiguration' => $this->masteryConfiguration($learningClass),
+            'masteryRuleStatuses' => MasteryRuleStatus::options(),
+            'masteryHeatmap' => $this->heatmapWithRemedialUrls($learningClass, 'admin'),
         ]);
     }
 
@@ -294,5 +305,78 @@ class LearningClassController extends Controller
             'attempts_count' => $assignment->attempts_count ?? 0,
             'attempt_url' => route('admin.class-assessment-attempts.index', [$assignment->learning_class_id, $assignment]),
         ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function masteryConfiguration(LearningClass $learningClass): array
+    {
+        $competencies = Competency::query()
+            ->where('course_id', $learningClass->course_id)
+            ->where('status', AcademicStatus::Active->value)
+            ->with([
+                'prerequisites:id,name',
+                'modules' => fn ($query) => $query
+                    ->where('status', AcademicStatus::Active->value)
+                    ->with(['lessons' => fn ($query) => $query->where('status', AcademicStatus::Active->value)]),
+                'masteryRules' => fn ($query) => $query
+                    ->where('learning_class_id', $learningClass->id)
+                    ->with('remedialLessons:id,title'),
+            ])
+            ->orderBy('sort_order')
+            ->get();
+        $assignments = LearningClassAssessment::query()
+            ->where('learning_class_id', $learningClass->id)
+            ->whereHas('assessment', fn ($query) => $query
+                ->where('purpose', AssessmentPurpose::Mastery->value)
+                ->where('status', AssessmentStatus::Published->value))
+            ->with('assessment:id,competency_id,title')
+            ->get()
+            ->groupBy(fn (LearningClassAssessment $assignment): int => $assignment->assessment->competency_id);
+
+        return $competencies->map(function (Competency $competency) use ($learningClass, $assignments): array {
+            $rule = $competency->masteryRules->first();
+
+            return [
+                'id' => $competency->id,
+                'name' => $competency->name,
+                'prerequisites' => $competency->prerequisites->pluck('name')->values()->all(),
+                'assessment_options' => $assignments->get($competency->id, collect())->map(
+                    fn (LearningClassAssessment $assignment): array => [
+                        'id' => $assignment->id,
+                        'title' => $assignment->assessment->title,
+                    ],
+                )->values()->all(),
+                'lesson_options' => $competency->modules->flatMap(
+                    fn (Module $module) => $module->lessons,
+                )->map(fn (Lesson $lesson): array => [
+                    'id' => $lesson->id,
+                    'title' => $lesson->title,
+                ])->values()->all(),
+                'rule' => $rule === null ? null : [
+                    'learning_class_assessment_id' => $rule->learning_class_assessment_id,
+                    'mastery_score' => $rule->mastery_score,
+                    'require_remedial' => $rule->require_remedial,
+                    'status' => $rule->status->value,
+                    'remedial_lesson_ids' => $rule->remedialLessons->pluck('id')->all(),
+                ],
+                'save_url' => route('admin.classes.mastery-rules.update', [$learningClass, $competency]),
+            ];
+        })->all();
+    }
+
+    /** @return array<string, mixed> */
+    private function heatmapWithRemedialUrls(LearningClass $learningClass, string $prefix): array
+    {
+        $heatmap = $this->masteryProgress->heatmap($learningClass);
+
+        foreach ($heatmap['students'] as &$student) {
+            foreach ($student['competencies'] as &$cell) {
+                $cell['remedial_url'] = $cell['remedial_assignment_id'] === null
+                    ? null
+                    : route("{$prefix}.remedials.show", $cell['remedial_assignment_id']);
+            }
+        }
+
+        return $heatmap;
     }
 }

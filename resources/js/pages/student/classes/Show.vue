@@ -7,6 +7,7 @@ import {
     CirclePlay,
     ClipboardList,
     Clock3,
+    LockKeyhole,
 } from '@lucide/vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
@@ -97,13 +98,59 @@ defineOptions({
         <div v-if="competencies.length" class="space-y-6">
             <Card v-for="competency in competencies" :key="competency.id">
                 <CardHeader>
-                    <CardTitle>{{ competency.name }}</CardTitle>
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-3"
+                    >
+                        <CardTitle>{{ competency.name }}</CardTitle>
+                        <Badge
+                            :variant="
+                                competency.mastery_status === 'mastered'
+                                    ? 'default'
+                                    : 'secondary'
+                            "
+                        >
+                            {{ competency.mastery_status.replaceAll('_', ' ') }}
+                        </Badge>
+                    </div>
                     <p
                         v-if="competency.description"
                         class="text-sm text-muted-foreground"
                     >
                         {{ competency.description }}
                     </p>
+                    <p
+                        v-if="!competency.unlocked"
+                        class="flex items-center gap-2 text-sm text-muted-foreground"
+                    >
+                        <LockKeyhole class="size-4" />
+                        Complete
+                        {{ competency.missing_prerequisites.join(', ') }} first.
+                    </p>
+                    <p
+                        v-else-if="competency.mastery_status === 'mastered'"
+                        class="text-sm text-emerald-700"
+                    >
+                        Best mastery score: {{ competency.best_score }}%
+                    </p>
+                    <p
+                        v-else-if="
+                            competency.mastery_status === 'needs_remedial'
+                        "
+                        class="text-sm text-amber-700"
+                    >
+                        Latest score: {{ competency.latest_score }}% · Required:
+                        {{ competency.required_score }}%
+                    </p>
+                    <Button
+                        v-if="competency.remedial_url"
+                        class="w-fit"
+                        size="sm"
+                        as-child
+                    >
+                        <Link :href="competency.remedial_url"
+                            >Continue Remedial</Link
+                        >
+                    </Button>
                 </CardHeader>
                 <CardContent class="space-y-5">
                     <div
@@ -113,14 +160,24 @@ defineOptions({
                     >
                         <h3 class="font-medium">{{ module.name }}</h3>
                         <div class="overflow-hidden rounded-lg border">
-                            <Link
+                            <component
                                 v-for="lesson in module.lessons"
                                 :key="lesson.id"
-                                :href="lesson.url"
-                                class="flex items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/50"
+                                :is="lesson.url ? Link : 'div'"
+                                :href="lesson.url ?? undefined"
+                                class="flex items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0"
+                                :class="
+                                    lesson.url
+                                        ? 'hover:bg-muted/50'
+                                        : 'cursor-not-allowed opacity-60'
+                                "
                             >
+                                <LockKeyhole
+                                    v-if="!lesson.url"
+                                    class="size-5 shrink-0"
+                                />
                                 <CheckCircle2
-                                    v-if="
+                                    v-else-if="
                                         lesson.progress_status === 'completed'
                                     "
                                     class="size-5 shrink-0 text-emerald-600"
@@ -148,7 +205,7 @@ defineOptions({
                                     <Clock3 class="size-3.5" />
                                     {{ lesson.duration_minutes }} min
                                 </span>
-                            </Link>
+                            </component>
                             <p
                                 v-if="!module.lessons.length"
                                 class="px-4 py-3 text-sm text-muted-foreground"

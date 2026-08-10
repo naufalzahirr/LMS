@@ -45,6 +45,19 @@ defineProps<{
                     </div>
                 </CardHeader>
                 <CardContent class="space-y-4">
+                    <div
+                        v-if="assessment.mastery"
+                        class="rounded-md bg-muted p-3 text-sm"
+                    >
+                        <p class="font-medium capitalize">
+                            Mastery ·
+                            {{ assessment.mastery.status.replaceAll('_', ' ') }}
+                        </p>
+                        <p class="text-muted-foreground">
+                            Best {{ assessment.mastery.best_score ?? '—' }}% ·
+                            target {{ assessment.mastery.required_score }}%
+                        </p>
+                    </div>
                     <div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                         <div>
                             <p class="text-muted-foreground">Questions</p>

@@ -9,6 +9,7 @@ import {
     Clock3,
     Download,
     ExternalLink,
+    LockKeyhole,
     RotateCcw,
 } from '@lucide/vue';
 import { Badge } from '@/components/ui/badge';
@@ -86,19 +87,26 @@ function setProgress(status: 'in_progress' | 'completed'): void {
                         <p class="mb-1 px-2 text-sm font-medium">
                             {{ module.name }}
                         </p>
-                        <Link
+                        <component
                             v-for="item in module.lessons"
                             :key="item.id"
-                            :href="item.url"
-                            class="flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                            :is="item.url ? Link : 'div'"
+                            :href="item.url ?? undefined"
+                            class="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
                             :class="
                                 item.id === lesson.id
                                     ? 'bg-muted font-medium'
-                                    : ''
+                                    : item.url
+                                      ? 'hover:bg-muted'
+                                      : 'cursor-not-allowed opacity-60'
                             "
                         >
+                            <LockKeyhole
+                                v-if="!item.url"
+                                class="size-4 shrink-0"
+                            />
                             <CheckCircle2
-                                v-if="item.progress_status === 'completed'"
+                                v-else-if="item.progress_status === 'completed'"
                                 class="size-4 shrink-0 text-emerald-600"
                             />
                             <CirclePlay
@@ -112,7 +120,7 @@ function setProgress(status: 'in_progress' | 'completed'): void {
                                 class="size-4 shrink-0 text-muted-foreground"
                             />
                             <span>{{ item.title }}</span>
-                        </Link>
+                        </component>
                     </div>
                 </div>
             </nav>

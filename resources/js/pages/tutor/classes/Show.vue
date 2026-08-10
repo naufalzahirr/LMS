@@ -8,6 +8,7 @@ import {
     Target,
 } from '@lucide/vue';
 import Heading from '@/components/Heading.vue';
+import MasteryHeatmap from '@/components/mastery/MasteryHeatmap.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +40,7 @@ defineProps<{
     enrollments: EnrollmentRow[];
     contentSummary: { competencies: number; modules: number; lessons: number };
     assessmentAssignments: ClassAssessmentAssignment[];
+    masteryHeatmap: InstanceType<typeof MasteryHeatmap>['$props']['heatmap'];
 }>();
 defineOptions({
     layout: { breadcrumbs: [{ title: 'My classes', href: index() }] },
@@ -215,6 +217,7 @@ defineOptions({
                 </p>
             </CardContent>
         </Card>
+        <MasteryHeatmap :heatmap="masteryHeatmap" />
         <Card class="gap-0 overflow-hidden py-0"
             ><CardHeader class="py-5"><CardTitle>Roster</CardTitle></CardHeader
             ><CardContent class="p-0"

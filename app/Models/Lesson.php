@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -31,6 +32,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Module $module
  * @property-read Collection<int, LessonProgress> $progressRecords
+ * @property-read Collection<int, MasteryRule> $defaultRemedialRules
+ * @property-read Collection<int, RemedialAssignmentLesson> $remedialAssignmentLessons
  */
 #[Fillable([
     'module_id',
@@ -63,6 +66,20 @@ class Lesson extends Model
     public function progressRecords(): HasMany
     {
         return $this->hasMany(LessonProgress::class);
+    }
+
+    /** @return BelongsToMany<MasteryRule, $this> */
+    public function defaultRemedialRules(): BelongsToMany
+    {
+        return $this->belongsToMany(MasteryRule::class, 'mastery_rule_remedial_lessons')
+            ->withPivot(['sort_order'])
+            ->withTimestamps();
+    }
+
+    /** @return HasMany<RemedialAssignmentLesson, $this> */
+    public function remedialAssignmentLessons(): HasMany
+    {
+        return $this->hasMany(RemedialAssignmentLesson::class);
     }
 
     /**

@@ -59,6 +59,34 @@ function start(): void {
                 >
                     {{ assessment.instructions }}
                 </div>
+                <div
+                    v-if="assessment.mastery"
+                    class="rounded-lg border bg-muted/30 p-4 text-sm"
+                >
+                    <p class="font-medium">Mastery assessment</p>
+                    <p class="mt-1 text-muted-foreground">
+                        Status:
+                        {{ assessment.mastery.status.replaceAll('_', ' ') }} ·
+                        Best {{ assessment.mastery.best_score ?? '—' }}% ·
+                        Required {{ assessment.mastery.required_score }}%
+                    </p>
+                    <p
+                        v-if="assessment.mastery.message"
+                        class="mt-2 text-amber-700 dark:text-amber-300"
+                    >
+                        {{ assessment.mastery.message }}
+                    </p>
+                    <Button
+                        v-if="assessment.mastery.remedial_url"
+                        class="mt-3"
+                        variant="outline"
+                        as-child
+                    >
+                        <Link :href="assessment.mastery.remedial_url">
+                            Continue remedial learning
+                        </Link>
+                    </Button>
+                </div>
                 <div class="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
                     <div>
                         <p class="text-muted-foreground">Questions</p>

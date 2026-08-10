@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property int $id
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Assessment $assessment
  * @property-read Collection<int, AssessmentAttempt> $attempts
  * @property-read int|null $attempts_count
+ * @property-read MasteryRule|null $masteryRule
  */
 #[Fillable(['learning_class_id', 'assessment_id', 'opens_at', 'closes_at', 'max_attempts', 'status', 'feedback_mode'])]
 class LearningClassAssessment extends Model
@@ -49,6 +51,12 @@ class LearningClassAssessment extends Model
     public function attempts(): HasMany
     {
         return $this->hasMany(AssessmentAttempt::class);
+    }
+
+    /** @return HasOne<MasteryRule, $this> */
+    public function masteryRule(): HasOne
+    {
+        return $this->hasOne(MasteryRule::class);
     }
 
     /** @return array<string, string> */

@@ -10,13 +10,17 @@ use App\Models\LearningClass;
 use App\Models\LearningClassAssessment;
 use App\Models\User;
 use App\Services\LearningProgressQueryService;
+use App\Services\MasteryProgressQueryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class LearningClassController extends Controller
 {
-    public function __construct(private readonly LearningProgressQueryService $progressQuery) {}
+    public function __construct(
+        private readonly LearningProgressQueryService $progressQuery,
+        private readonly MasteryProgressQueryService $masteryProgress,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -135,6 +139,23 @@ class LearningClassController extends Controller
                     'attempt_url' => route('tutor.class-assessment-attempts.index', [$learningClass, $assignment]),
                 ],
             )->values()->all(),
+            'masteryHeatmap' => $this->heatmap($learningClass),
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function heatmap(LearningClass $learningClass): array
+    {
+        $heatmap = $this->masteryProgress->heatmap($learningClass);
+
+        foreach ($heatmap['students'] as &$student) {
+            foreach ($student['competencies'] as &$cell) {
+                $cell['remedial_url'] = $cell['remedial_assignment_id'] === null
+                    ? null
+                    : route('tutor.remedials.show', $cell['remedial_assignment_id']);
+            }
+        }
+
+        return $heatmap;
     }
 }

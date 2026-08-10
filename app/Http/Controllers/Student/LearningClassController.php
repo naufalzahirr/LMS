@@ -13,7 +13,9 @@ use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\Module;
 use App\Models\User;
+use App\Services\CompetencyAccessService;
 use App\Services\LearningProgressQueryService;
+use App\Services\MasteryProgressQueryService;
 use App\Services\StudentAssessmentPayloadService;
 use App\Services\StudentLearningAccessService;
 use Illuminate\Database\Eloquent\Collection;
@@ -27,6 +29,8 @@ class LearningClassController extends Controller
         private readonly StudentLearningAccessService $access,
         private readonly LearningProgressQueryService $progressQuery,
         private readonly StudentAssessmentPayloadService $assessmentPayloads,
+        private readonly MasteryProgressQueryService $masteryProgress,
+        private readonly CompetencyAccessService $competencyAccess,
     ) {}
 
     public function index(Request $request): Response
@@ -73,6 +77,7 @@ class LearningClassController extends Controller
             ->whereIn('lesson_id', $lessonIds)
             ->get()
             ->keyBy('lesson_id');
+        $masteryStates = collect($this->masteryProgress->studentCompetencies($learningClass, $enrollment))->keyBy('id');
 
         return Inertia::render('student/classes/Show', [
             'learningClass' => $this->classDetails($learningClass),
@@ -85,30 +90,45 @@ class LearningClassController extends Controller
             'assessments' => $this->assessmentPayloads->assignmentsForEnrollment($enrollment),
             'assessments_url' => route('student.assessments.index', $learningClass),
             'competencies' => $learningClass->course->competencies->map(
-                fn (Competency $competency): array => [
-                    'id' => $competency->id,
-                    'name' => $competency->name,
-                    'description' => $competency->description,
-                    'modules' => $competency->modules->map(
-                        fn (Module $module): array => [
-                            'id' => $module->id,
-                            'name' => $module->name,
-                            'description' => $module->description,
-                            'lessons' => $module->lessons->map(function (Lesson $lesson) use ($progress, $learningClass): array {
-                                $record = $progress->get($lesson->id);
+                function (Competency $competency) use ($masteryStates, $progress, $learningClass): array {
+                    $mastery = $masteryStates->get($competency->id);
+                    $unlocked = (bool) ($mastery['unlocked'] ?? true);
 
-                                return [
-                                    'id' => $lesson->id,
-                                    'title' => $lesson->title,
-                                    'lesson_type' => $lesson->lesson_type->value,
-                                    'duration_minutes' => $lesson->duration_minutes,
-                                    'progress_status' => $record?->status->value ?? 'not_started',
-                                    'url' => route('student.lessons.show', [$learningClass, $lesson]),
-                                ];
-                            })->values()->all(),
-                        ],
-                    )->values()->all(),
-                ],
+                    return [
+                        'id' => $competency->id,
+                        'name' => $competency->name,
+                        'description' => $competency->description,
+                        'unlocked' => $unlocked,
+                        'mastery_status' => $mastery['status'] ?? 'learning',
+                        'prerequisites' => $mastery['prerequisites'] ?? [],
+                        'missing_prerequisites' => $mastery['missing_prerequisites'] ?? [],
+                        'latest_score' => $mastery['latest_score'] ?? null,
+                        'best_score' => $mastery['best_score'] ?? null,
+                        'required_score' => $mastery['required_score'] ?? null,
+                        'remedial_url' => ($mastery['remedial_assignment_id'] ?? null) === null
+                            ? null
+                            : route('student.remedials.show', $mastery['remedial_assignment_id']),
+                        'modules' => $competency->modules->map(
+                            fn (Module $module): array => [
+                                'id' => $module->id,
+                                'name' => $module->name,
+                                'description' => $module->description,
+                                'lessons' => $module->lessons->map(function (Lesson $lesson) use ($progress, $learningClass, $unlocked): array {
+                                    $record = $progress->get($lesson->id);
+
+                                    return [
+                                        'id' => $lesson->id,
+                                        'title' => $lesson->title,
+                                        'lesson_type' => $lesson->lesson_type->value,
+                                        'duration_minutes' => $lesson->duration_minutes,
+                                        'progress_status' => $record?->status->value ?? 'not_started',
+                                        'url' => $unlocked ? route('student.lessons.show', [$learningClass, $lesson]) : null,
+                                    ];
+                                })->values()->all(),
+                            ],
+                        )->values()->all(),
+                    ];
+                },
             )->values()->all(),
         ]);
     }
@@ -124,6 +144,9 @@ class LearningClassController extends Controller
             $learningClass = $enrollment->learningClass;
             $summary = $summaries[$enrollment->id];
             $continueLessonId = $summary['continue_lesson_id'];
+            $continueLesson = $continueLessonId === null ? null : Lesson::query()->find($continueLessonId);
+            $mayContinueLesson = $continueLesson instanceof Lesson
+                && $this->competencyAccess->mayOpenLesson($enrollment, $continueLesson);
 
             return [
                 ...$this->classDetails($learningClass),
@@ -133,9 +156,9 @@ class LearningClassController extends Controller
                 'total_lessons' => $summary['total_lessons'],
                 'percentage' => $summary['percentage'],
                 'read_only' => ! $this->mayMutate($enrollment, $learningClass),
-                'continue_url' => $continueLessonId === null
-                    ? route('student.classes.show', $learningClass)
-                    : route('student.lessons.show', [$learningClass, $continueLessonId]),
+                'continue_url' => $mayContinueLesson
+                    ? route('student.lessons.show', [$learningClass, $continueLesson])
+                    : route('student.classes.show', $learningClass),
             ];
         })->values()->all();
     }

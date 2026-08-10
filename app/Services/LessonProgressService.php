@@ -12,7 +12,10 @@ use Illuminate\Support\Facades\DB;
 
 class LessonProgressService
 {
-    public function __construct(private readonly StudentLearningAccessService $access) {}
+    public function __construct(
+        private readonly StudentLearningAccessService $access,
+        private readonly StudentCompetencyProgressService $competencyProgress,
+    ) {}
 
     public function view(User $user, Enrollment $enrollment, Lesson $lesson): LessonProgress
     {
@@ -29,6 +32,8 @@ class LessonProgressService
             $progress->started_at ??= $now;
             $progress->last_viewed_at = $now;
             $progress->save();
+            $lesson->loadMissing('module.competency');
+            $this->competencyProgress->refresh($enrollment, $lesson->module->competency);
 
             return $progress->refresh();
         });
@@ -46,6 +51,8 @@ class LessonProgressService
             $progress->completed_at = $now;
             $progress->last_viewed_at = $now;
             $progress->save();
+            $lesson->loadMissing('module.competency');
+            $this->competencyProgress->refresh($enrollment, $lesson->module->competency);
 
             return $progress->refresh();
         });
@@ -63,6 +70,8 @@ class LessonProgressService
             $progress->completed_at = null;
             $progress->last_viewed_at = $now;
             $progress->save();
+            $lesson->loadMissing('module.competency');
+            $this->competencyProgress->refresh($enrollment, $lesson->module->competency);
 
             return $progress->refresh();
         });

@@ -31,6 +31,15 @@ export type StudentAssessmentCard = {
     start_url: string;
     intro_url: string;
     in_progress_url: string | null;
+    mastery: {
+        can_start: boolean;
+        status: string;
+        required_score: string;
+        latest_score: string | null;
+        best_score: string | null;
+        message: string | null;
+        remedial_url: string | null;
+    } | null;
 };
 
 export type StudentAssessmentIntro = StudentAssessmentCard & {

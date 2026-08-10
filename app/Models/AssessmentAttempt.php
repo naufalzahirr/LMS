@@ -30,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property-read Enrollment $enrollment
  * @property-read Collection<int, AssessmentAttemptQuestion> $attemptQuestions
  * @property-read Collection<int, AssessmentAnswer> $answers
+ * @property-read Collection<int, RemedialAssignment> $sourceRemedialAssignments
  */
 #[Fillable([
     'learning_class_assessment_id',
@@ -72,6 +73,12 @@ class AssessmentAttempt extends Model
     public function answers(): HasMany
     {
         return $this->hasMany(AssessmentAnswer::class);
+    }
+
+    /** @return HasMany<RemedialAssignment, $this> */
+    public function sourceRemedialAssignments(): HasMany
+    {
+        return $this->hasMany(RemedialAssignment::class, 'source_assessment_attempt_id');
     }
 
     /** @return array<string, string> */

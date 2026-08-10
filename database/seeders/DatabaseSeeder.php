@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             DeliverySeeder::class,
             AssessmentSeeder::class,
             AssessmentAttemptSeeder::class,
+            MasteryLearningSeeder::class,
         ]);
     }
 }

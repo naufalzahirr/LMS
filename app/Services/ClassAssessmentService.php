@@ -13,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 
 class ClassAssessmentService
 {
+    public function __construct(private readonly RemedialAssignmentService $remedials) {}
+
     /** @param array{assessment_id: int, opens_at: string|null, closes_at: string|null, max_attempts: int, status: ClassAssessmentStatus, feedback_mode: AssessmentFeedbackMode} $data */
     public function assign(LearningClass $learningClass, Assessment $assessment, array $data): LearningClassAssessment
     {
@@ -39,7 +41,16 @@ class ClassAssessmentService
     public function update(LearningClassAssessment $assignment, array $data): LearningClassAssessment
     {
         return DB::transaction(function () use ($assignment, $data): LearningClassAssessment {
+            $highestUsedAttempt = (int) $assignment->attempts()->max('attempt_number');
+
+            if ($data['max_attempts'] < $highestUsedAttempt) {
+                throw ValidationException::withMessages([
+                    'max_attempts' => __('Maximum attempts cannot be lower than attempts already used by a student.'),
+                ]);
+            }
+
             $assignment->update($data);
+            $this->remedials->refreshCompletedForClassAssessment($assignment->id);
 
             return $assignment->refresh();
         });
