@@ -30,6 +30,8 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Enrollment> $enrollments
  * @property-read Collection<int, User> $students
  * @property-read Collection<int, User> $tutors
+ * @property-read Collection<int, LearningClassAssessment> $assessmentAssignments
+ * @property-read Collection<int, Assessment> $assessments
  * @property-read int|null $enrollments_count
  * @property-read int|null $students_count
  * @property-read int|null $tutors_count
@@ -73,6 +75,20 @@ class LearningClass extends Model
     public function tutors(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'learning_class_tutor', 'learning_class_id', 'tutor_id')
+            ->withTimestamps();
+    }
+
+    /** @return HasMany<LearningClassAssessment, $this> */
+    public function assessmentAssignments(): HasMany
+    {
+        return $this->hasMany(LearningClassAssessment::class)->orderByDesc('created_at');
+    }
+
+    /** @return BelongsToMany<Assessment, $this> */
+    public function assessments(): BelongsToMany
+    {
+        return $this->belongsToMany(Assessment::class, 'learning_class_assessments')
+            ->withPivot(['id', 'opens_at', 'closes_at', 'max_attempts', 'status'])
             ->withTimestamps();
     }
 

@@ -35,9 +35,9 @@ class CourseService
     public function delete(Course $course): void
     {
         DB::transaction(function () use ($course): void {
-            if ($course->competencies()->exists() || $course->learningClasses()->exists()) {
+            if ($course->competencies()->exists() || $course->learningClasses()->exists() || $course->questionBanks()->exists()) {
                 throw ValidationException::withMessages([
-                    'course' => __('This course cannot be deleted while it still has competencies or classes.'),
+                    'course' => __('This course cannot be deleted while it still has competencies, classes, or question banks.'),
                 ]);
             }
 

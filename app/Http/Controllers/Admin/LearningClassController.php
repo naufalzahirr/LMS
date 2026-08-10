@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\AssessmentStatus;
+use App\Enums\ClassAssessmentStatus;
 use App\Enums\EnrollmentStatus;
 use App\Enums\LearningClassStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreLearningClassRequest;
 use App\Http\Requests\Admin\UpdateLearningClassRequest;
+use App\Models\Assessment;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\LearningClass;
+use App\Models\LearningClassAssessment;
 use App\Models\Program;
 use App\Models\User;
 use App\Services\LearningClassService;
@@ -120,6 +124,10 @@ class LearningClassController extends Controller
             'course.program:id,name',
             'tutors:id,name,email',
             'enrollments.student:id,name,email',
+            'assessmentAssignments.assessment' => fn ($query) => $query
+                ->with('competency:id,course_id,name')
+                ->withCount('assessmentQuestions')
+                ->withSum('assessmentQuestions as total_points', 'points'),
         ]);
         $assignedTutorIds = $learningClass->tutors->pluck('id');
         $enrolledStudentIds = $learningClass->enrollments->pluck('student_id');
@@ -158,6 +166,23 @@ class LearningClassController extends Controller
                     'name' => $tutor->name,
                     'email' => $tutor->email,
                 ])->all(),
+            'assessmentAssignments' => $learningClass->assessmentAssignments->map(
+                fn (LearningClassAssessment $assignment): array => $this->assessmentAssignment($assignment),
+            )->values()->all(),
+            'assessmentOptions' => Assessment::query()
+                ->where('status', AssessmentStatus::Published->value)
+                ->whereHas('competency', fn ($query) => $query->where('course_id', $learningClass->course_id))
+                ->whereNotIn('id', $learningClass->assessmentAssignments->pluck('assessment_id'))
+                ->with('competency:id,course_id,name')
+                ->orderBy('title')
+                ->get()
+                ->map(fn (Assessment $assessment): array => [
+                    'id' => $assessment->id,
+                    'title' => $assessment->title,
+                    'purpose' => $assessment->purpose->value,
+                    'competency' => $assessment->competency->name,
+                ])->all(),
+            'classAssessmentStatuses' => ClassAssessmentStatus::options(),
         ]);
     }
 
@@ -242,6 +267,25 @@ class LearningClassController extends Controller
             'status' => $learningClass->status->value,
             'start_date' => $learningClass->start_date?->toDateString(),
             'end_date' => $learningClass->end_date?->toDateString(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function assessmentAssignment(LearningClassAssessment $assignment): array
+    {
+        return [
+            'id' => $assignment->id,
+            'assessment_id' => $assignment->assessment_id,
+            'title' => $assignment->assessment->title,
+            'purpose' => $assignment->assessment->purpose->value,
+            'assessment_status' => $assignment->assessment->status->value,
+            'competency' => $assignment->assessment->competency->name,
+            'questions_count' => $assignment->assessment->assessment_questions_count ?? 0,
+            'total_points' => $assignment->assessment->getAttribute('total_points') ?? '0.00',
+            'opens_at' => $assignment->opens_at?->format('Y-m-d\TH:i'),
+            'closes_at' => $assignment->closes_at?->format('Y-m-d\TH:i'),
+            'max_attempts' => $assignment->max_attempts,
+            'status' => $assignment->status->value,
         ];
     }
 }

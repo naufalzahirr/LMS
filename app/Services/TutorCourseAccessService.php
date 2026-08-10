@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Enums\LearningClassStatus;
+use App\Models\Assessment;
 use App\Models\Competency;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Module;
+use App\Models\Question;
+use App\Models\QuestionBank;
 use App\Models\User;
 
 class TutorCourseAccessService
@@ -62,5 +65,24 @@ class TutorCourseAccessService
         $lesson->loadMissing('module.competency:id,course_id');
 
         return $this->canManageCourse($user, $lesson->module->competency->course_id);
+    }
+
+    public function canManageQuestionBank(User $user, QuestionBank $questionBank): bool
+    {
+        return $this->canManageCourse($user, $questionBank->course_id);
+    }
+
+    public function canManageQuestion(User $user, Question $question): bool
+    {
+        $question->loadMissing('questionBank:id,course_id');
+
+        return $this->canManageCourse($user, $question->questionBank->course_id);
+    }
+
+    public function canManageAssessment(User $user, Assessment $assessment): bool
+    {
+        $assessment->loadMissing('competency:id,course_id');
+
+        return $this->canManageCourse($user, $assessment->competency->course_id);
     }
 }

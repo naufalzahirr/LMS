@@ -12,6 +12,7 @@ import { computed } from 'vue';
 import EnrollmentController from '@/actions/App/Http/Controllers/Admin/EnrollmentController';
 import LearningClassController from '@/actions/App/Http/Controllers/Admin/LearningClassController';
 import TutorAssignmentController from '@/actions/App/Http/Controllers/Admin/TutorAssignmentController';
+import ClassAssessmentManager from '@/components/admin/ClassAssessmentManager.vue';
 import AlertError from '@/components/AlertError.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
@@ -27,6 +28,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { index } from '@/routes/admin/classes';
+import type {
+    ClassAssessmentAssignment,
+    ClassAssessmentOption,
+    ClassAssessmentStatus,
+    SelectOption,
+} from '@/types/assessment';
 import type {
     DeliveryUserOption,
     EnrollmentStatus,
@@ -61,6 +68,9 @@ defineProps<{
     tutors: DeliveryUserOption[];
     studentOptions: DeliveryUserOption[];
     tutorOptions: DeliveryUserOption[];
+    assessmentAssignments: ClassAssessmentAssignment[];
+    assessmentOptions: ClassAssessmentOption[];
+    classAssessmentStatuses: SelectOption<ClassAssessmentStatus>[];
 }>();
 
 defineOptions({
@@ -183,6 +193,12 @@ function unassignTutor(classId: number, tutor: DeliveryUserOption): void {
                 </p>
             </CardContent>
         </Card>
+        <ClassAssessmentManager
+            :class-id="learningClass.id"
+            :assignments="assessmentAssignments"
+            :assessment-options="assessmentOptions"
+            :statuses="classAssessmentStatuses"
+        />
         <div class="grid gap-6 xl:grid-cols-2">
             <Card>
                 <CardHeader

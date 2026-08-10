@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\AssessmentController;
+use App\Http\Controllers\Admin\AssessmentQuestionController;
+use App\Http\Controllers\Admin\ClassAssessmentController;
 use App\Http\Controllers\Admin\CompetencyController;
 use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\EnrollmentController;
@@ -8,6 +11,8 @@ use App\Http\Controllers\Admin\LessonController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\ParentStudentRelationshipController;
 use App\Http\Controllers\Admin\ProgramController;
+use App\Http\Controllers\Admin\QuestionBankController;
+use App\Http\Controllers\Admin\QuestionController;
 use App\Http\Controllers\Admin\TutorAssignmentController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Student\LearningClassController as StudentLearningClassController;
@@ -41,6 +46,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->except('show')
         ->names('admin.modules');
 
+    Route::resource('admin/question-banks', QuestionBankController::class)
+        ->except('show')
+        ->parameters(['question-banks' => 'questionBank'])
+        ->names('admin.question-banks');
+
+    Route::resource('admin/questions', QuestionController::class)
+        ->names('admin.questions');
+
+    Route::patch('admin/assessments/{assessment}/publish', [AssessmentController::class, 'publish'])
+        ->name('admin.assessments.publish');
+    Route::patch('admin/assessments/{assessment}/archive', [AssessmentController::class, 'archive'])
+        ->name('admin.assessments.archive');
+    Route::post('admin/assessments/{assessment}/questions', [AssessmentQuestionController::class, 'store'])
+        ->name('admin.assessments.questions.store');
+    Route::patch('admin/assessments/{assessment}/questions/{assessmentQuestion}', [AssessmentQuestionController::class, 'update'])
+        ->name('admin.assessments.questions.update');
+    Route::patch('admin/assessments/{assessment}/questions/{assessmentQuestion}/move/{direction}', [AssessmentQuestionController::class, 'move'])
+        ->name('admin.assessments.questions.move');
+    Route::delete('admin/assessments/{assessment}/questions/{assessmentQuestion}', [AssessmentQuestionController::class, 'destroy'])
+        ->name('admin.assessments.questions.destroy');
+    Route::resource('admin/assessments', AssessmentController::class)
+        ->names('admin.assessments');
+
     Route::post('admin/classes/{learningClass}/enrollments', [EnrollmentController::class, 'store'])
         ->name('admin.classes.enrollments.store');
     Route::patch('admin/classes/{learningClass}/enrollments/{enrollment}/withdraw', [EnrollmentController::class, 'withdraw'])
@@ -53,6 +81,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('admin.classes.tutors.store');
     Route::delete('admin/classes/{learningClass}/tutors/{tutor}', [TutorAssignmentController::class, 'destroy'])
         ->name('admin.classes.tutors.destroy');
+    Route::post('admin/classes/{learningClass}/assessments', [ClassAssessmentController::class, 'store'])
+        ->name('admin.classes.assessments.store');
+    Route::patch('admin/classes/{learningClass}/assessments/{assignment}', [ClassAssessmentController::class, 'update'])
+        ->name('admin.classes.assessments.update');
+    Route::delete('admin/classes/{learningClass}/assessments/{assignment}', [ClassAssessmentController::class, 'destroy'])
+        ->name('admin.classes.assessments.destroy');
     Route::resource('admin/classes', LearningClassController::class)
         ->parameters(['classes' => 'learningClass'])
         ->names('admin.classes');

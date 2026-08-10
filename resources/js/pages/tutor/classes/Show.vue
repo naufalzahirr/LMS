@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { index } from '@/routes/tutor/classes';
+import type { ClassAssessmentAssignment } from '@/types/assessment';
 import type { EnrollmentStatus, LearningClassStatus } from '@/types/delivery';
 
 type ClassDetails = {
@@ -31,6 +32,7 @@ defineProps<{
     learningClass: ClassDetails;
     enrollments: EnrollmentRow[];
     contentSummary: { competencies: number; modules: number; lessons: number };
+    assessmentAssignments: ClassAssessmentAssignment[];
 }>();
 defineOptions({
     layout: { breadcrumbs: [{ title: 'My classes', href: index() }] },
@@ -131,6 +133,69 @@ defineOptions({
                 ></Card
             >
         </div>
+        <Card class="gap-0 overflow-hidden py-0">
+            <CardHeader class="py-5"
+                ><CardTitle>Assigned assessments</CardTitle></CardHeader
+            >
+            <CardContent class="p-0">
+                <div
+                    v-if="assessmentAssignments.length"
+                    class="overflow-x-auto"
+                >
+                    <table class="w-full text-sm">
+                        <thead class="border-y bg-muted/40 text-left">
+                            <tr>
+                                <th class="px-5 py-3">Assessment</th>
+                                <th class="px-5 py-3">Composition</th>
+                                <th class="px-5 py-3">Window</th>
+                                <th class="px-5 py-3">Attempts</th>
+                                <th class="px-5 py-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr
+                                v-for="item in assessmentAssignments"
+                                :key="item.id"
+                            >
+                                <td class="px-5 py-4">
+                                    <p class="font-medium">{{ item.title }}</p>
+                                    <p class="text-xs text-muted-foreground">
+                                        {{ item.competency }} ·
+                                        {{ item.purpose }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-4">
+                                    {{ item.questions_count }} questions ·
+                                    {{ item.total_points }} pts
+                                </td>
+                                <td class="px-5 py-4">
+                                    <p>{{ item.opens_at ?? 'Immediately' }}</p>
+                                    <p class="text-xs text-muted-foreground">
+                                        to {{ item.closes_at ?? 'No deadline' }}
+                                    </p>
+                                </td>
+                                <td class="px-5 py-4">
+                                    {{ item.max_attempts }}
+                                </td>
+                                <td class="px-5 py-4">
+                                    <Badge
+                                        :variant="
+                                            item.status === 'active'
+                                                ? 'default'
+                                                : 'secondary'
+                                        "
+                                        >{{ item.status }}</Badge
+                                    >
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p v-else class="p-8 text-center text-sm text-muted-foreground">
+                    No assessment assigned to this class.
+                </p>
+            </CardContent>
+        </Card>
         <Card class="gap-0 overflow-hidden py-0"
             ><CardHeader class="py-5"><CardTitle>Roster</CardTitle></CardHeader
             ><CardContent class="p-0"

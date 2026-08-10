@@ -7,6 +7,7 @@ use App\Enums\LearningClassStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Enrollment;
 use App\Models\LearningClass;
+use App\Models\LearningClassAssessment;
 use App\Models\User;
 use App\Services\LearningProgressQueryService;
 use Illuminate\Http\Request;
@@ -78,6 +79,10 @@ class LearningClassController extends Controller
             'course.program:id,name',
             'course.competencies.modules.lessons',
             'enrollments.student:id,name,email',
+            'assessmentAssignments.assessment' => fn ($query) => $query
+                ->with('competency:id,course_id,name')
+                ->withCount('assessmentQuestions')
+                ->withSum('assessmentQuestions as total_points', 'points'),
         ]);
         $progress = $this->progressQuery->summariesForEnrollments($learningClass->enrollments);
 
@@ -111,6 +116,20 @@ class LearningClassController extends Controller
                     fn ($competency): int => $competency->modules->sum(fn ($module): int => $module->lessons->count()),
                 ),
             ],
+            'assessmentAssignments' => $learningClass->assessmentAssignments->map(
+                fn (LearningClassAssessment $assignment): array => [
+                    'id' => $assignment->id,
+                    'title' => $assignment->assessment->title,
+                    'purpose' => $assignment->assessment->purpose->value,
+                    'competency' => $assignment->assessment->competency->name,
+                    'questions_count' => $assignment->assessment->assessment_questions_count ?? 0,
+                    'total_points' => $assignment->assessment->getAttribute('total_points') ?? '0.00',
+                    'opens_at' => $assignment->opens_at?->toDateTimeString(),
+                    'closes_at' => $assignment->closes_at?->toDateTimeString(),
+                    'max_attempts' => $assignment->max_attempts,
+                    'status' => $assignment->status->value,
+                ],
+            )->values()->all(),
         ]);
     }
 }

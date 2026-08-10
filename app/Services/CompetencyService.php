@@ -32,9 +32,9 @@ class CompetencyService
     public function delete(Competency $competency): void
     {
         DB::transaction(function () use ($competency): void {
-            if ($competency->modules()->exists()) {
+            if ($competency->modules()->exists() || $competency->questions()->exists() || $competency->assessments()->exists()) {
                 throw ValidationException::withMessages([
-                    'competency' => __('This competency cannot be deleted while it still has modules.'),
+                    'competency' => __('This competency cannot be deleted while it still has modules, questions, or assessments.'),
                 ]);
             }
 

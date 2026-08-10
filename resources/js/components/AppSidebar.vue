@@ -3,6 +3,9 @@ import { Link, usePage } from '@inertiajs/vue3';
 import {
     BookOpen,
     BookOpenCheck,
+    CircleHelp,
+    ClipboardCheck,
+    Database,
     GraduationCap,
     LayoutGrid,
     LibraryBig,
@@ -26,6 +29,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as assessmentsIndex } from '@/routes/admin/assessments';
 import { index as adminClassesIndex } from '@/routes/admin/classes';
 import { index as competenciesIndex } from '@/routes/admin/competencies';
 import { index as coursesIndex } from '@/routes/admin/courses';
@@ -33,6 +37,8 @@ import { index as lessonsIndex } from '@/routes/admin/lessons';
 import { index as modulesIndex } from '@/routes/admin/modules';
 import { index as parentStudentsIndex } from '@/routes/admin/parent-students';
 import { index as programsIndex } from '@/routes/admin/programs';
+import { index as questionBanksIndex } from '@/routes/admin/question-banks';
+import { index as questionsIndex } from '@/routes/admin/questions';
 import { index as usersIndex } from '@/routes/admin/users';
 import { index as studentClassesIndex } from '@/routes/student/classes';
 import { index as tutorClassesIndex } from '@/routes/tutor/classes';
@@ -111,17 +117,45 @@ const academicNavItems = computed<NavItem[]>(() => {
         },
     ];
 
-    items.push({
-        title: page.props.auth.roles.includes('Admin')
-            ? 'Classes'
-            : 'My classes',
-        href: page.props.auth.roles.includes('Admin')
-            ? adminClassesIndex()
-            : tutorClassesIndex(),
-        icon: UsersRound,
-    });
-
     return items;
+});
+
+const assessmentNavItems = computed<NavItem[]>(() => {
+    if (
+        !page.props.auth.roles.some((role) => ['Admin', 'Tutor'].includes(role))
+    ) {
+        return [];
+    }
+
+    return [
+        { title: 'Question banks', href: questionBanksIndex(), icon: Database },
+        { title: 'Questions', href: questionsIndex(), icon: CircleHelp },
+        {
+            title: 'Assessments',
+            href: assessmentsIndex(),
+            icon: ClipboardCheck,
+        },
+    ];
+});
+
+const deliveryNavItems = computed<NavItem[]>(() => {
+    if (
+        !page.props.auth.roles.some((role) => ['Admin', 'Tutor'].includes(role))
+    ) {
+        return [];
+    }
+
+    return [
+        {
+            title: page.props.auth.roles.includes('Admin')
+                ? 'Classes'
+                : 'My classes',
+            href: page.props.auth.roles.includes('Admin')
+                ? adminClassesIndex()
+                : tutorClassesIndex(),
+            icon: UsersRound,
+        },
+    ];
 });
 
 const footerNavItems: NavItem[] = [
@@ -153,6 +187,16 @@ const footerNavItems: NavItem[] = [
                 v-if="academicNavItems.length"
                 label="Academic"
                 :items="academicNavItems"
+            />
+            <NavMain
+                v-if="assessmentNavItems.length"
+                label="Assessment"
+                :items="assessmentNavItems"
+            />
+            <NavMain
+                v-if="deliveryNavItems.length"
+                label="Delivery"
+                :items="deliveryNavItems"
             />
         </SidebarContent>
 

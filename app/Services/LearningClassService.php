@@ -44,6 +44,12 @@ class LearningClassService
                 ]);
             }
 
+            if ($learningClass->assessmentAssignments()->exists()) {
+                throw ValidationException::withMessages([
+                    'learning_class' => __('This class cannot be deleted while assessments are assigned.'),
+                ]);
+            }
+
             $learningClass->delete();
         });
     }

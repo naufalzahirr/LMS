@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AcademicStatus;
-use Database\Factories\CompetencyFactory;
+use Database\Factories\QuestionBankFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,44 +16,27 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $course_id
- * @property string $code
  * @property string $name
- * @property string $slug
+ * @property string|null $code
  * @property string|null $description
- * @property string|null $learning_objectives
- * @property int $sort_order
  * @property AcademicStatus $status
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property-read Course $course
- * @property-read Collection<int, Module> $modules
  * @property-read Collection<int, Question> $questions
- * @property-read Collection<int, Assessment> $assessments
- * @property-read int|null $modules_count
+ * @property-read int|null $questions_count
  */
-#[Fillable(['course_id', 'code', 'name', 'slug', 'description', 'learning_objectives', 'sort_order', 'status'])]
-class Competency extends Model
+#[Fillable(['course_id', 'name', 'code', 'description', 'status'])]
+class QuestionBank extends Model
 {
-    /** @use HasFactory<CompetencyFactory> */
+    /** @use HasFactory<QuestionBankFactory> */
     use HasFactory, SoftDeletes;
 
-    /**
-     * @return BelongsTo<Course, $this>
-     */
+    /** @return BelongsTo<Course, $this> */
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
-    }
-
-    /**
-     * @return HasMany<Module, $this>
-     */
-    public function modules(): HasMany
-    {
-        return $this->hasMany(Module::class)
-            ->orderBy('sort_order')
-            ->orderBy('name');
     }
 
     /** @return HasMany<Question, $this> */
@@ -62,20 +45,9 @@ class Competency extends Model
         return $this->hasMany(Question::class)->orderBy('sort_order')->orderBy('id');
     }
 
-    /** @return HasMany<Assessment, $this> */
-    public function assessments(): HasMany
-    {
-        return $this->hasMany(Assessment::class)->orderBy('title');
-    }
-
-    /**
-     * @return array<string, string>
-     */
+    /** @return array<string, string> */
     protected function casts(): array
     {
-        return [
-            'sort_order' => 'integer',
-            'status' => AcademicStatus::class,
-        ];
+        return ['status' => AcademicStatus::class];
     }
 }
