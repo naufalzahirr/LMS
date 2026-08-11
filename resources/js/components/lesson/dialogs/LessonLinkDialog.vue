@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { validateLessonLinkUrl } from '@/lib/lessonUrls';
 
 const props = defineProps<{
     open: boolean;
@@ -42,9 +43,10 @@ watch(
 
 function submit(): void {
     const normalizedUrl = url.value.trim();
+    const urlError = validateLessonLinkUrl(normalizedUrl);
 
-    if (!isSafeHttpUrl(normalizedUrl)) {
-        error.value = 'Enter a complete HTTP or HTTPS URL.';
+    if (urlError) {
+        error.value = urlError;
 
         return;
     }
@@ -55,28 +57,14 @@ function submit(): void {
         return;
     }
 
-    emit('save', { url: normalizedUrl, text: text.value.trim() });
-}
-
-function isSafeHttpUrl(value: string): boolean {
-    try {
-        const parsed = new URL(value);
-
-        return (
-            ['http:', 'https:'].includes(parsed.protocol) &&
-            !parsed.username &&
-            !parsed.password
-        );
-    } catch {
-        return false;
-    }
+    emit('save', { url: normalizedUrl, text: text.value });
 }
 </script>
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
         <DialogContent>
-            <form class="space-y-5" @submit.prevent="submit">
+            <form class="space-y-5" novalidate @submit.prevent="submit">
                 <DialogHeader>
                     <DialogTitle>{{
                         editing ? 'Edit link' : 'Insert link'
@@ -99,10 +87,12 @@ function isSafeHttpUrl(value: string): boolean {
                     <Input
                         id="lesson-link-url"
                         v-model="url"
-                        type="url"
+                        type="text"
                         inputmode="url"
                         placeholder="https://example.com/resource"
                         autocomplete="off"
+                        :aria-invalid="Boolean(error)"
+                        @input="error = ''"
                     />
                     <p
                         v-if="error"

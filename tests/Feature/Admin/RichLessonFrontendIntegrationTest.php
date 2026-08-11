@@ -34,6 +34,30 @@ class RichLessonFrontendIntegrationTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\bprompt\s*\(/', $editor);
     }
 
+    public function test_rich_editor_preserves_selections_and_owns_link_and_video_validation(): void
+    {
+        $editor = $this->source('resources/js/components/lesson/RichLessonEditor.vue');
+        $link = $this->source('resources/js/components/lesson/dialogs/LessonLinkDialog.vue');
+        $video = $this->source('resources/js/components/lesson/dialogs/LessonVideoDialog.vue');
+        $contentTypes = $this->source('resources/js/types/lesson-content.ts');
+
+        foreach (['linkSelection', 'getMarkRange', 'preserveToolbarSelection', 'restoreNodeSelection', 'videoInsertionPosition', 'imageInsertionPosition', 'resourceInsertionPosition', 'currentBlockInsertionPosition', 'insertBlockAt'] as $selectionGuard) {
+            $this->assertStringContainsString($selectionGuard, $editor);
+        }
+
+        $this->assertStringContainsString('placeholder.length', $editor);
+        $this->assertStringContainsString('novalidate', $link);
+        $this->assertStringContainsString('type="text"', $link);
+        $this->assertStringContainsString('validateLessonLinkUrl', $link);
+        $this->assertStringContainsString('novalidate', $video);
+        $this->assertStringContainsString('validateLessonVideoUrl', $video);
+        $this->assertStringContainsString('max-h-[calc(100dvh-2rem)]', $video);
+        $this->assertStringContainsString('overflow-y-auto', $video);
+        $this->assertStringContainsString('shrink-0 border-t', $video);
+        $this->assertStringContainsString("key !== 'url' || node.type === 'externalVideo'", $contentTypes);
+        $this->assertStringContainsString("['tableCell', 'tableHeader'].includes(node.type)", $contentTypes);
+    }
+
     private function source(string $path): string
     {
         $contents = file_get_contents(base_path($path));

@@ -20,6 +20,7 @@ import {
     Upload,
     Video,
 } from '@lucide/vue';
+import { getMarkRange, isNodeSelection } from '@tiptap/core';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import LinkExtension from '@tiptap/extension-link';
 import { TableKit } from '@tiptap/extension-table';
@@ -96,15 +97,20 @@ const linkDialogOpen = ref(false);
 const linkEditing = ref(false);
 const linkInitialUrl = ref('');
 const linkInitialText = ref('');
+const linkSelection = ref<{ from: number; to: number } | null>(null);
 
 const videoDialogOpen = ref(false);
 const videoEditing = ref(false);
+const videoSelectionPosition = ref<number | null>(null);
+const videoInsertionPosition = ref<number | null>(null);
 const videoInitialUrl = ref('');
 const videoInitialTitle = ref('');
 const videoInitialCaption = ref('');
 
 const imageDialogOpen = ref(false);
 const imageEditing = ref(false);
+const imageSelectionPosition = ref<number | null>(null);
+const imageInsertionPosition = ref<number | null>(null);
 const imageInitialFile = ref<File | null>(null);
 const imageExistingUrl = ref<string | null>(null);
 const imageInitialAltText = ref('');
@@ -115,6 +121,8 @@ const imageInitialDecorative = ref(false);
 
 const resourceDialogOpen = ref(false);
 const resourceEditing = ref(false);
+const resourceSelectionPosition = ref<number | null>(null);
+const resourceInsertionPosition = ref<number | null>(null);
 const resourceInitialTitle = ref('');
 const resourceInitialCaption = ref('');
 const resourceOriginalName = ref('');
@@ -198,29 +206,76 @@ function openLinkDialog(): void {
         return;
     }
 
-    linkEditing.value = editor.value.isActive('link');
-
-    if (linkEditing.value) {
-        editor.value.chain().focus().extendMarkRange('link').run();
-    }
-
-    linkInitialUrl.value = String(
-        editor.value.getAttributes('link').href ?? '',
-    );
+    const existingLink = selectedLink();
+    linkEditing.value = existingLink !== null;
+    linkSelection.value = existingLink?.range ?? {
+        from: editor.value.state.selection.from,
+        to: editor.value.state.selection.to,
+    };
+    linkInitialUrl.value = existingLink?.href ?? '';
     linkInitialText.value = editor.value.state.doc.textBetween(
-        editor.value.state.selection.from,
-        editor.value.state.selection.to,
+        linkSelection.value.from,
+        linkSelection.value.to,
         ' ',
     );
     linkDialogOpen.value = true;
 }
 
+function selectedLink(): {
+    href: string;
+    range: { from: number; to: number };
+} | null {
+    const currentEditor = editor.value;
+
+    if (!currentEditor) {
+        return null;
+    }
+
+    currentEditor.chain().focus().extendMarkRange('link').run();
+    const activeHref = currentEditor.getAttributes('link').href;
+
+    if (typeof activeHref === 'string' && activeHref !== '') {
+        return {
+            href: activeHref,
+            range: {
+                from: currentEditor.state.selection.from,
+                to: currentEditor.state.selection.to,
+            },
+        };
+    }
+
+    const { doc, schema, selection } = currentEditor.state;
+    const linkType = schema.marks.link;
+    const positions = [
+        selection.from,
+        selection.from - 1,
+        selection.from + 1,
+    ].filter((position) => position >= 0 && position <= doc.content.size);
+
+    for (const position of positions) {
+        const resolved = doc.resolve(position);
+        const mark = resolved.marks().find((item) => item.type === linkType);
+        const range = mark
+            ? getMarkRange(resolved, linkType, mark.attrs)
+            : undefined;
+
+        if (mark && range && typeof mark.attrs.href === 'string') {
+            return {
+                href: mark.attrs.href,
+                range: { from: range.from, to: range.to },
+            };
+        }
+    }
+
+    return null;
+}
+
 function saveLink(value: { url: string; text: string }): void {
-    if (!editor.value) {
+    if (!editor.value || !linkSelection.value) {
         return;
     }
 
-    const { from, to } = editor.value.state.selection;
+    const { from, to } = linkSelection.value;
     const selectedText = editor.value.state.doc.textBetween(from, to, ' ');
 
     if (from === to || selectedText !== value.text) {
@@ -237,20 +292,42 @@ function saveLink(value: { url: string; text: string }): void {
             )
             .run();
     } else {
-        editor.value.chain().focus().setLink({ href: value.url }).run();
+        editor.value
+            .chain()
+            .focus()
+            .setTextSelection({ from, to })
+            .setLink({ href: value.url })
+            .setTextSelection(to)
+            .run();
     }
 
     linkDialogOpen.value = false;
 }
 
 function removeLink(): void {
-    editor.value?.chain().focus().extendMarkRange('link').unsetLink().run();
+    if (editor.value && linkSelection.value) {
+        editor.value
+            .chain()
+            .focus()
+            .setTextSelection(linkSelection.value)
+            .unsetLink()
+            .setTextSelection(linkSelection.value.to)
+            .run();
+    }
+
     linkDialogOpen.value = false;
 }
 
 function openVideoDialog(): void {
-    const attrs = editor.value?.getAttributes('externalVideo') ?? {};
-    videoEditing.value = editor.value?.isActive('externalVideo') ?? false;
+    videoSelectionPosition.value = selectedNodePosition('externalVideo');
+    videoEditing.value = videoSelectionPosition.value !== null;
+    videoInsertionPosition.value = videoEditing.value
+        ? null
+        : currentBlockInsertionPosition();
+    const attrs = nodeAttributesAt(
+        'externalVideo',
+        videoSelectionPosition.value,
+    );
     videoInitialUrl.value = String(attrs.url ?? '');
     videoInitialTitle.value = String(attrs.title ?? 'Lesson video');
     videoInitialCaption.value = String(attrs.caption ?? '');
@@ -265,17 +342,25 @@ function saveVideo(value: {
     const attrs = { ...value, provider: null, videoId: null, embedUrl: null };
 
     if (videoEditing.value) {
+        if (
+            !restoreNodeSelection('externalVideo', videoSelectionPosition.value)
+        ) {
+            toolbarError.value =
+                'The selected video changed. Select it again before editing.';
+
+            return;
+        }
+
         editor.value
             ?.chain()
             .focus()
             .updateAttributes('externalVideo', attrs)
             .run();
     } else {
-        editor.value
-            ?.chain()
-            .focus()
-            .insertContent({ type: 'externalVideo', attrs })
-            .run();
+        insertBlockAt(videoInsertionPosition.value, {
+            type: 'externalVideo',
+            attrs,
+        });
     }
 
     videoDialogOpen.value = false;
@@ -283,13 +368,18 @@ function saveVideo(value: {
 
 async function openImageDialog(file: File | null = null): Promise<void> {
     toolbarError.value = '';
+    imageSelectionPosition.value = selectedNodePosition('lessonImage');
+    imageInsertionPosition.value =
+        imageSelectionPosition.value === null
+            ? currentBlockInsertionPosition()
+            : null;
 
     if (!(await resolveAssetUploadUrl())) {
         return;
     }
 
-    const attrs = editor.value?.getAttributes('lessonImage') ?? {};
-    imageEditing.value = editor.value?.isActive('lessonImage') ?? false;
+    const attrs = nodeAttributesAt('lessonImage', imageSelectionPosition.value);
+    imageEditing.value = imageSelectionPosition.value !== null;
     imageInitialFile.value = file;
     imageExistingUrl.value = typeof attrs.url === 'string' ? attrs.url : null;
     imageInitialAltText.value = String(attrs.altText ?? '');
@@ -305,7 +395,10 @@ async function openImageDialog(file: File | null = null): Promise<void> {
 }
 
 async function saveImage(value: LessonImageDialogValue): Promise<void> {
-    const existing = editor.value?.getAttributes('lessonImage') ?? {};
+    const existing = nodeAttributesAt(
+        'lessonImage',
+        imageSelectionPosition.value,
+    );
     let asset: UploadedLessonAsset | null = null;
 
     dialogError.value = '';
@@ -348,17 +441,25 @@ async function saveImage(value: LessonImageDialogValue): Promise<void> {
     };
 
     if (imageEditing.value) {
+        if (
+            !restoreNodeSelection('lessonImage', imageSelectionPosition.value)
+        ) {
+            dialogError.value =
+                'The selected image changed. Select it again before editing.';
+
+            return;
+        }
+
         editor.value
             ?.chain()
             .focus()
             .updateAttributes('lessonImage', attrs)
             .run();
     } else {
-        editor.value
-            ?.chain()
-            .focus()
-            .insertContent({ type: 'lessonImage', attrs })
-            .run();
+        insertBlockAt(imageInsertionPosition.value, {
+            type: 'lessonImage',
+            attrs,
+        });
     }
 
     imageDialogOpen.value = false;
@@ -366,13 +467,21 @@ async function saveImage(value: LessonImageDialogValue): Promise<void> {
 
 async function openResourceDialog(): Promise<void> {
     toolbarError.value = '';
+    resourceSelectionPosition.value = selectedNodePosition('lessonFile');
+    resourceInsertionPosition.value =
+        resourceSelectionPosition.value === null
+            ? currentBlockInsertionPosition()
+            : null;
 
     if (!(await resolveAssetUploadUrl())) {
         return;
     }
 
-    const attrs = editor.value?.getAttributes('lessonFile') ?? {};
-    resourceEditing.value = editor.value?.isActive('lessonFile') ?? false;
+    const attrs = nodeAttributesAt(
+        'lessonFile',
+        resourceSelectionPosition.value,
+    );
+    resourceEditing.value = resourceSelectionPosition.value !== null;
     resourceInitialTitle.value = String(attrs.title ?? '');
     resourceInitialCaption.value = String(attrs.caption ?? '');
     resourceOriginalName.value = String(attrs.originalName ?? '');
@@ -384,7 +493,10 @@ async function openResourceDialog(): Promise<void> {
 }
 
 async function saveResource(value: LessonResourceDialogValue): Promise<void> {
-    const existing = editor.value?.getAttributes('lessonFile') ?? {};
+    const existing = nodeAttributesAt(
+        'lessonFile',
+        resourceSelectionPosition.value,
+    );
     let asset: UploadedLessonAsset | null = null;
 
     dialogError.value = '';
@@ -419,17 +531,25 @@ async function saveResource(value: LessonResourceDialogValue): Promise<void> {
     };
 
     if (resourceEditing.value) {
+        if (
+            !restoreNodeSelection('lessonFile', resourceSelectionPosition.value)
+        ) {
+            dialogError.value =
+                'The selected resource changed. Select it again before editing.';
+
+            return;
+        }
+
         editor.value
             ?.chain()
             .focus()
             .updateAttributes('lessonFile', attrs)
             .run();
     } else {
-        editor.value
-            ?.chain()
-            .focus()
-            .insertContent({ type: 'lessonFile', attrs })
-            .run();
+        insertBlockAt(resourceInsertionPosition.value, {
+            type: 'lessonFile',
+            attrs,
+        });
     }
 
     resourceDialogOpen.value = false;
@@ -443,17 +563,128 @@ function insertCode(): void {
         .run();
 }
 
+function preserveToolbarSelection(event: MouseEvent): void {
+    if ((event.target as Element).closest('button')) {
+        event.preventDefault();
+    }
+}
+
 function insertCallout(): void {
-    editor.value
-        ?.chain()
+    const currentEditor = editor.value;
+
+    if (!currentEditor) {
+        return;
+    }
+
+    const placeholder = 'Add an important learning note.';
+    const insertionPosition = currentEditor.state.selection.from;
+    currentEditor
+        .chain()
         .focus()
         .insertContent({
             type: 'callout',
             attrs: { type: selectedCallout.value },
-            content: [
-                { type: 'text', text: 'Add an important learning note.' },
-            ],
+            content: [{ type: 'text', text: placeholder }],
         })
+        .run();
+
+    let calloutPosition: number | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    currentEditor.state.doc.descendants((node, position) => {
+        if (node.type.name !== 'callout' || node.textContent !== placeholder) {
+            return;
+        }
+
+        const distance = Math.abs(position - insertionPosition);
+
+        if (distance < closestDistance) {
+            calloutPosition = position;
+            closestDistance = distance;
+        }
+    });
+
+    if (calloutPosition !== null) {
+        currentEditor
+            .chain()
+            .focus()
+            .setTextSelection({
+                from: calloutPosition + 1,
+                to: calloutPosition + 1 + placeholder.length,
+            })
+            .run();
+    }
+}
+
+function selectedNodePosition(type: string): number | null {
+    const currentEditor = editor.value;
+
+    if (!currentEditor || !isNodeSelection(currentEditor.state.selection)) {
+        return null;
+    }
+
+    return currentEditor.state.selection.node.type.name === type
+        ? currentEditor.state.selection.from
+        : null;
+}
+
+function nodeAttributesAt(
+    type: string,
+    position: number | null,
+): Record<string, unknown> {
+    if (!editor.value || position === null) {
+        return {};
+    }
+
+    const node = editor.value.state.doc.nodeAt(position);
+
+    return node?.type.name === type ? node.attrs : {};
+}
+
+function restoreNodeSelection(type: string, position: number | null): boolean {
+    if (!editor.value || position === null) {
+        return false;
+    }
+
+    const node = editor.value.state.doc.nodeAt(position);
+
+    if (node?.type.name !== type) {
+        return false;
+    }
+
+    return editor.value.chain().focus().setNodeSelection(position).run();
+}
+
+function currentBlockInsertionPosition(): number | null {
+    const currentEditor = editor.value;
+
+    if (!currentEditor) {
+        return null;
+    }
+
+    const { selection } = currentEditor.state;
+
+    return selection.$to.depth >= 1 ? selection.$to.after(1) : selection.to;
+}
+
+function insertBlockAt(
+    position: number | null,
+    node: { type: string; attrs: Record<string, unknown> },
+): void {
+    const currentEditor = editor.value;
+
+    if (!currentEditor) {
+        return;
+    }
+
+    const insertionPosition = Math.min(
+        position ?? currentEditor.state.selection.to,
+        currentEditor.state.doc.content.size,
+    );
+    currentEditor
+        .chain()
+        .focus()
+        .insertContentAt(insertionPosition, node)
         .run();
 }
 
@@ -743,6 +974,7 @@ function isImageSize(
             class="flex flex-wrap items-center gap-1 border-b bg-muted/35 p-2"
             role="toolbar"
             aria-label="Lesson formatting"
+            @mousedown="preserveToolbarSelection"
         >
             <button
                 type="button"

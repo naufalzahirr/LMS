@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\LessonContentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class RichLessonContentValidationTest extends TestCase
@@ -40,7 +41,7 @@ class RichLessonContentValidationTest extends TestCase
                     'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Use semantic headings']]]],
                 ]]],
                 ['type' => 'codeBlock', 'attrs' => ['language' => 'html'], 'content' => [['type' => 'text', 'text' => '<table></table>']]],
-                ['type' => 'callout', 'attrs' => ['type' => 'tip'], 'content' => [['type' => 'text', 'text' => 'Use th for headings.']]],
+                ['type' => 'callout', 'attrs' => ['type' => 'info'], 'content' => [['type' => 'text', 'text' => 'Use th for headings.']]],
                 ['type' => 'externalVideo', 'attrs' => [
                     'url' => 'https://www.youtube.com/watch?v=UB1O30fR-EE',
                     'title' => 'HTML table walkthrough',
@@ -89,6 +90,14 @@ class RichLessonContentValidationTest extends TestCase
                 'type' => 'doc',
                 'content' => [['type' => 'callout', 'attrs' => ['type' => 'success']]],
             ],
+            'malformed callout attributes' => [
+                'type' => 'doc',
+                'content' => [['type' => 'callout', 'attrs' => ['type' => ['info']]]],
+            ],
+            'unknown callout property' => [
+                'type' => 'doc',
+                'content' => [['type' => 'callout', 'attrs' => ['type' => 'info', 'style' => 'display:none']]],
+            ],
             'event handler attribute' => [
                 'type' => 'doc',
                 'content' => [['type' => 'paragraph', 'attrs' => ['onclick' => 'alert(1)']]],
@@ -101,6 +110,77 @@ class RichLessonContentValidationTest extends TestCase
                 ->put(route('admin.lessons.update', $lesson), $this->payload($lesson, $document))
                 ->assertRedirect(route('admin.lessons.edit', $lesson))
                 ->assertSessionHasErrors('content_document');
+        }
+    }
+
+    public function test_link_and_video_urls_follow_the_safe_shared_content_contract(): void
+    {
+        $lesson = Lesson::factory()->create();
+        $service = app(LessonContentService::class);
+
+        foreach (['http://example.com/resource', 'https://example.com/resource'] as $url) {
+            $normalized = $service->normalize($lesson, [
+                'type' => 'doc',
+                'content' => [[
+                    'type' => 'paragraph',
+                    'content' => [[
+                        'type' => 'text',
+                        'text' => 'Safe resource',
+                        'marks' => [['type' => 'link', 'attrs' => ['href' => $url]]],
+                    ]],
+                ]],
+            ]);
+
+            $this->assertSame($url, $normalized['content'][0]['content'][0]['marks'][0]['attrs']['href']);
+        }
+
+        foreach (['javascript:alert(1)', 'ftp://example.com/resource', 'https://user:secret@example.com/resource', 'not a url'] as $url) {
+            try {
+                $service->normalize($lesson, [
+                    'type' => 'doc',
+                    'content' => [[
+                        'type' => 'paragraph',
+                        'content' => [[
+                            'type' => 'text',
+                            'text' => 'Unsafe resource',
+                            'marks' => [['type' => 'link', 'attrs' => ['href' => $url]]],
+                        ]],
+                    ]],
+                ]);
+                $this->fail("Unsafe lesson link [{$url}] was accepted.");
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('content_document', $exception->errors());
+            }
+        }
+
+        foreach ([
+            ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'youtube'],
+            ['https://vimeo.com/76979871', 'vimeo'],
+        ] as [$url, $provider]) {
+            $normalized = $service->normalize($lesson, [
+                'type' => 'doc',
+                'content' => [[
+                    'type' => 'externalVideo',
+                    'attrs' => ['url' => $url, 'title' => 'Trusted video'],
+                ]],
+            ]);
+
+            $this->assertSame($provider, $normalized['content'][0]['attrs']['provider']);
+        }
+
+        foreach (['not a url', 'https://example.com/video', 'ftp://vimeo.com/76979871'] as $url) {
+            try {
+                $service->normalize($lesson, [
+                    'type' => 'doc',
+                    'content' => [[
+                        'type' => 'externalVideo',
+                        'attrs' => ['url' => $url, 'title' => 'Untrusted video'],
+                    ]],
+                ]);
+                $this->fail("Untrusted lesson video [{$url}] was accepted.");
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('content_document', $exception->errors());
+            }
         }
     }
 

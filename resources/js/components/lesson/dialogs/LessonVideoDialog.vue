@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { parseTrustedVideo, validateLessonVideoUrl } from '@/lib/lessonUrls';
 
 const props = defineProps<{
     open: boolean;
@@ -45,8 +46,10 @@ watch(
 );
 
 function submit(): void {
-    if (!preview.value) {
-        error.value = 'Use a supported YouTube or Vimeo URL.';
+    const urlError = validateLessonVideoUrl(url.value);
+
+    if (urlError) {
+        error.value = urlError;
 
         return;
     }
@@ -63,123 +66,88 @@ function submit(): void {
         caption: caption.value.trim() || null,
     });
 }
-
-function parseTrustedVideo(
-    value: string,
-): { provider: string; embedUrl: string } | null {
-    try {
-        const parsed = new URL(value.trim());
-
-        if (
-            !['http:', 'https:'].includes(parsed.protocol) ||
-            parsed.username ||
-            parsed.password
-        ) {
-            return null;
-        }
-
-        const host = parsed.hostname.toLowerCase();
-        const segments = parsed.pathname.split('/').filter(Boolean);
-        let id: string | null = null;
-
-        if (
-            ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(host)
-        ) {
-            id =
-                segments[0] === 'embed' || segments[0] === 'shorts'
-                    ? (segments[1] ?? null)
-                    : parsed.searchParams.get('v');
-        } else if (host === 'youtu.be') {
-            id = segments[0] ?? null;
-        }
-
-        if (id && /^[A-Za-z0-9_-]{6,20}$/.test(id)) {
-            return {
-                provider: 'YouTube',
-                embedUrl: `https://www.youtube-nocookie.com/embed/${id}`,
-            };
-        }
-
-        if (['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'].includes(host)) {
-            id = segments.at(-1) ?? null;
-
-            if (id && /^\d+$/.test(id)) {
-                return {
-                    provider: 'Vimeo',
-                    embedUrl: `https://player.vimeo.com/video/${id}`,
-                };
-            }
-        }
-    } catch {
-        return null;
-    }
-
-    return null;
-}
 </script>
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent class="sm:max-w-2xl">
-            <form class="space-y-5" @submit.prevent="submit">
-                <DialogHeader>
-                    <DialogTitle>{{
-                        editing ? 'Edit video' : 'Add external video'
-                    }}</DialogTitle>
-                    <DialogDescription>
-                        Paste a YouTube or Vimeo URL. Video files are not
-                        uploaded to the LMS.
-                    </DialogDescription>
-                </DialogHeader>
+        <DialogContent
+            class="max-h-[calc(100dvh-2rem)] overflow-hidden p-0 sm:max-w-2xl"
+        >
+            <form
+                class="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col"
+                novalidate
+                @submit.prevent="submit"
+            >
+                <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
+                    <DialogHeader>
+                        <DialogTitle>{{
+                            editing ? 'Edit video' : 'Add external video'
+                        }}</DialogTitle>
+                        <DialogDescription>
+                            Paste a YouTube or Vimeo URL. Video files are not
+                            uploaded to the LMS.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                <div class="grid gap-2">
-                    <Label for="lesson-video-url">Video URL</Label>
-                    <Input
-                        id="lesson-video-url"
-                        v-model="url"
-                        type="url"
-                        inputmode="url"
-                        placeholder="https://www.youtube.com/watch?v=…"
-                    />
-                </div>
-                <div class="grid gap-2">
-                    <Label for="lesson-video-title">Descriptive title</Label>
-                    <Input
-                        id="lesson-video-title"
-                        v-model="title"
-                        maxlength="255"
-                    />
-                </div>
-                <div class="grid gap-2">
-                    <Label for="lesson-video-caption">Caption (optional)</Label>
-                    <Textarea
-                        id="lesson-video-caption"
-                        v-model="caption"
-                        maxlength="2000"
-                    />
-                </div>
-
-                <div v-if="preview" class="space-y-2">
-                    <p class="text-xs font-medium text-muted-foreground">
-                        {{ preview.provider }} preview
-                    </p>
-                    <div
-                        class="aspect-video overflow-hidden rounded-lg border bg-black"
-                    >
-                        <iframe
-                            :src="preview.embedUrl"
-                            :title="title || 'Video preview'"
-                            class="size-full"
-                            allowfullscreen
-                            referrerpolicy="strict-origin-when-cross-origin"
+                    <div class="grid gap-2">
+                        <Label for="lesson-video-url">Video URL</Label>
+                        <Input
+                            id="lesson-video-url"
+                            v-model="url"
+                            type="text"
+                            inputmode="url"
+                            placeholder="https://www.youtube.com/watch?v=…"
+                            :aria-invalid="Boolean(error)"
+                            @input="error = ''"
                         />
                     </div>
-                </div>
-                <p v-if="error" role="alert" class="text-sm text-destructive">
-                    {{ error }}
-                </p>
+                    <div class="grid gap-2">
+                        <Label for="lesson-video-title"
+                            >Descriptive title</Label
+                        >
+                        <Input
+                            id="lesson-video-title"
+                            v-model="title"
+                            maxlength="255"
+                        />
+                    </div>
+                    <div class="grid gap-2">
+                        <Label for="lesson-video-caption"
+                            >Caption (optional)</Label
+                        >
+                        <Textarea
+                            id="lesson-video-caption"
+                            v-model="caption"
+                            maxlength="2000"
+                        />
+                    </div>
 
-                <DialogFooter>
+                    <div v-if="preview" class="space-y-2">
+                        <p class="text-xs font-medium text-muted-foreground">
+                            {{ preview.provider }} preview
+                        </p>
+                        <div
+                            class="aspect-video overflow-hidden rounded-lg border bg-black"
+                        >
+                            <iframe
+                                :src="preview.embedUrl"
+                                :title="title || 'Video preview'"
+                                class="size-full"
+                                allowfullscreen
+                                referrerpolicy="strict-origin-when-cross-origin"
+                            />
+                        </div>
+                    </div>
+                    <p
+                        v-if="error"
+                        role="alert"
+                        class="text-sm text-destructive"
+                    >
+                        {{ error }}
+                    </p>
+                </div>
+
+                <DialogFooter class="shrink-0 border-t bg-background px-6 py-4">
                     <Button
                         type="button"
                         variant="outline"

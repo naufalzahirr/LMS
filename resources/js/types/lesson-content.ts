@@ -50,7 +50,6 @@ export type UploadedLessonAsset = {
 };
 
 const presentationAttributes = new Set([
-    'url',
     'downloadUrl',
     'embedUrl',
     'originalName',
@@ -78,7 +77,14 @@ function stripNode(node: LessonNode | LessonDocument): LessonNode {
     if ('attrs' in node && node.attrs) {
         clean.attrs = Object.fromEntries(
             Object.entries(node.attrs).filter(
-                ([key]) => !presentationAttributes.has(key),
+                ([key, value]) =>
+                    !presentationAttributes.has(key) &&
+                    (key !== 'url' || node.type === 'externalVideo') &&
+                    !(
+                        key === 'align' &&
+                        value === null &&
+                        ['tableCell', 'tableHeader'].includes(node.type)
+                    ),
             ),
         );
     }

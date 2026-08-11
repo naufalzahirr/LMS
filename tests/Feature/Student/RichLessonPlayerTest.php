@@ -51,6 +51,10 @@ class RichLessonPlayerTest extends TestCase
             'type' => 'doc',
             'content' => [
                 ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => '<script>shown as code-like text only</script>']]],
+                ['type' => 'callout', 'attrs' => ['type' => 'info'], 'content' => [[
+                    'type' => 'text',
+                    'text' => 'Review the table structure before continuing.',
+                ]]],
                 ['type' => 'externalVideo', 'attrs' => [
                     'url' => 'https://www.youtube.com/watch?v=UB1O30fR-EE',
                     'title' => 'HTML walkthrough',
@@ -73,12 +77,14 @@ class RichLessonPlayerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('student/lessons/Show')
                 ->where('lesson.content_document.content.0.content.0.text', '<script>shown as code-like text only</script>')
-                ->where('lesson.content_document.content.1.attrs.embedUrl', 'https://www.youtube-nocookie.com/embed/UB1O30fR-EE')
+                ->where('lesson.content_document.content.1.attrs.type', 'info')
+                ->where('lesson.content_document.content.1.content.0.text', 'Review the table structure before continuing.')
+                ->where('lesson.content_document.content.2.attrs.embedUrl', 'https://www.youtube-nocookie.com/embed/UB1O30fR-EE')
                 ->where(
-                    'lesson.content_document.content.2.attrs.url',
+                    'lesson.content_document.content.3.attrs.url',
                     route('student.lesson-assets.file', [$learningClass, $lesson, $asset]),
                 )
-                ->missing('lesson.content_document.content.2.attrs.file_path')
+                ->missing('lesson.content_document.content.3.attrs.file_path')
                 ->where('learningClass.completed_lessons', 0)
                 ->where('learningClass.total_lessons', 1));
 

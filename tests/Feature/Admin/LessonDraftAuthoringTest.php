@@ -14,6 +14,7 @@ use App\Models\LessonAsset;
 use App\Models\Module;
 use App\Models\User;
 use App\Services\LearningProgressQueryService;
+use App\Services\LessonContentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -137,6 +138,63 @@ class LessonDraftAuthoringTest extends TestCase
         $this->assertSame('Accessible multimedia lesson', $draft->title);
         $this->assertDatabaseCount('lessons', 1);
         $this->assertDatabaseCount('lesson_assets', 2);
+    }
+
+    public function test_frontend_callout_contract_is_shared_by_preview_create_update_and_rendering(): void
+    {
+        $admin = $this->user('Admin');
+        $module = Module::factory()->create();
+        $draft = $this->createDraft($admin, $module);
+        $document = $this->calloutDocument('Check the worked example before continuing.');
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.lessons.preview', $draft), [
+                'content_document' => $document,
+            ])
+            ->assertOk()
+            ->assertJsonPath('content_document.content.1.type', 'callout')
+            ->assertJsonPath('content_document.content.1.attrs.type', 'info')
+            ->assertJsonPath(
+                'content_document.content.1.content.0.text',
+                'Check the worked example before continuing.',
+            );
+
+        $this->actingAs($admin)
+            ->post(route('admin.lessons.store'), [
+                'draft_id' => $draft->id,
+                'module_id' => $module->id,
+                'title' => 'Canonical callout lesson',
+                'slug' => 'canonical-callout-lesson',
+                'content_document' => json_encode($document, JSON_THROW_ON_ERROR),
+                'duration_minutes' => 10,
+                'sort_order' => 1,
+                'status' => AcademicStatus::Active->value,
+            ])
+            ->assertRedirect(route('admin.lessons.show', $draft));
+
+        $this->assertEquals($document, $draft->refresh()->content_document);
+
+        $updated = $this->calloutDocument('Use the checklist before continuing.');
+        $this->actingAs($admin)
+            ->put(route('admin.lessons.update', $draft), [
+                'module_id' => $module->id,
+                'title' => $draft->title,
+                'slug' => $draft->slug,
+                'content_document' => json_encode($updated, JSON_THROW_ON_ERROR),
+                'duration_minutes' => $draft->duration_minutes,
+                'sort_order' => $draft->sort_order,
+                'status' => AcademicStatus::Active->value,
+            ])
+            ->assertRedirect(route('admin.lessons.show', $draft));
+
+        $this->assertEquals($updated, $draft->refresh()->content_document);
+        $this->assertEquals(
+            $updated,
+            app(LessonContentService::class)->forRendering(
+                $draft,
+                fn (): never => throw new \RuntimeException('The callout fixture has no assets.'),
+            ),
+        );
     }
 
     public function test_draft_is_absent_from_student_navigation_and_direct_lesson_or_asset_access_is_rejected(): void
@@ -344,6 +402,26 @@ class LessonDraftAuthoringTest extends TestCase
             'file_size' => 19,
             'alt_text' => 'Accessible image',
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function calloutDocument(string $text): array
+    {
+        return [
+            'type' => 'doc',
+            'content' => [
+                [
+                    'type' => 'paragraph',
+                    'content' => [['type' => 'text', 'text' => 'Browser-authored lesson paragraph']],
+                ],
+                [
+                    'type' => 'callout',
+                    'attrs' => ['type' => 'info'],
+                    'content' => [['type' => 'text', 'text' => $text]],
+                ],
+                ['type' => 'paragraph'],
+            ],
+        ];
     }
 
     private function user(string $role): User
