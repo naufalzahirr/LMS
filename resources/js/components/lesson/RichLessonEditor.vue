@@ -39,6 +39,7 @@ import {
     LessonFile,
     LessonImage,
 } from '@/lib/lessonEditorExtensions';
+import type { EnsureLessonAssetUpload } from '@/types/lesson-authoring';
 import { canonicalLessonDocument } from '@/types/lesson-content';
 import type {
     LessonCalloutType,
@@ -50,6 +51,8 @@ import type {
 const props = defineProps<{
     modelValue: LessonDocument;
     assetUploadUrl: string | null;
+    canPrepareAssetUpload?: boolean;
+    ensureAssetUploadUrl?: EnsureLessonAssetUpload;
 }>();
 
 const emit = defineEmits<{
@@ -84,8 +87,10 @@ const serializedDocument = ref(
 );
 const toolbarError = ref('');
 const uploading = ref(false);
+const preparingAssetEndpoint = ref(false);
 const uploadProgress = ref(0);
 const dialogError = ref('');
+let assetEndpointPreparation: Promise<string | null> | null = null;
 
 const linkDialogOpen = ref(false);
 const linkEditing = ref(false);
@@ -163,7 +168,9 @@ const editor = useEditor({
     },
 });
 
-const assetControlsDisabled = computed(() => uploading.value);
+const assetControlsDisabled = computed(
+    () => uploading.value || preparingAssetEndpoint.value,
+);
 
 watch(
     () => props.modelValue,
@@ -274,13 +281,10 @@ function saveVideo(value: {
     videoDialogOpen.value = false;
 }
 
-function openImageDialog(file: File | null = null): void {
+async function openImageDialog(file: File | null = null): Promise<void> {
     toolbarError.value = '';
 
-    if (!props.assetUploadUrl) {
-        toolbarError.value =
-            'Select a module to prepare a private lesson draft before uploading.';
-
+    if (!(await resolveAssetUploadUrl())) {
         return;
     }
 
@@ -360,13 +364,10 @@ async function saveImage(value: LessonImageDialogValue): Promise<void> {
     imageDialogOpen.value = false;
 }
 
-function openResourceDialog(): void {
+async function openResourceDialog(): Promise<void> {
     toolbarError.value = '';
 
-    if (!props.assetUploadUrl) {
-        toolbarError.value =
-            'Select a module to prepare a private lesson draft before uploading.';
-
+    if (!(await resolveAssetUploadUrl())) {
         return;
     }
 
@@ -466,7 +467,7 @@ function openClipboardImage(event: ClipboardEvent): boolean {
     }
 
     event.preventDefault();
-    openImageDialog(file);
+    void openImageDialog(file);
 
     return true;
 }
@@ -490,12 +491,12 @@ function openDroppedImage(event: DragEvent): boolean {
         editor.value?.commands.setTextSelection(position.pos);
     }
 
-    openImageDialog(file);
+    void openImageDialog(file);
 
     return true;
 }
 
-function uploadAsset(
+async function uploadAsset(
     type: 'image' | 'document',
     file: File,
     metadata: {
@@ -504,8 +505,10 @@ function uploadAsset(
         decorative?: boolean;
     },
 ): Promise<UploadedLessonAsset | null> {
-    if (!props.assetUploadUrl) {
-        return Promise.resolve(null);
+    const assetUploadUrl = await resolveAssetUploadUrl();
+
+    if (!assetUploadUrl) {
+        return null;
     }
 
     uploading.value = true;
@@ -530,7 +533,7 @@ function uploadAsset(
             data.append('decorative', metadata.decorative ? '1' : '0');
         }
 
-        request.open('POST', props.assetUploadUrl!);
+        request.open('POST', assetUploadUrl);
         request.responseType = 'json';
         request.setRequestHeader('Accept', 'application/json');
         request.setRequestHeader('X-CSRF-TOKEN', csrfToken());
@@ -587,7 +590,9 @@ async function updateAssetMetadata(
         decorative?: boolean;
     },
 ): Promise<boolean> {
-    if (!props.assetUploadUrl || !Number.isInteger(assetId) || assetId < 1) {
+    const assetUploadUrl = await resolveAssetUploadUrl();
+
+    if (!assetUploadUrl || !Number.isInteger(assetId) || assetId < 1) {
         dialogError.value = 'This lesson asset can no longer be edited.';
 
         return false;
@@ -599,7 +604,7 @@ async function updateAssetMetadata(
 
     try {
         const response = await fetch(
-            `${props.assetUploadUrl.replace(/\/$/, '')}/${assetId}`,
+            `${assetUploadUrl.replace(/\/$/, '')}/${assetId}`,
             {
                 method: 'PATCH',
                 headers: {
@@ -638,6 +643,45 @@ async function updateAssetMetadata(
 
 function finishUpload(): void {
     uploading.value = false;
+}
+
+async function resolveAssetUploadUrl(): Promise<string | null> {
+    if (props.assetUploadUrl) {
+        return props.assetUploadUrl;
+    }
+
+    if (!props.ensureAssetUploadUrl || !props.canPrepareAssetUpload) {
+        toolbarError.value =
+            'Select a module before inserting a private image or PDF.';
+
+        return null;
+    }
+
+    if (assetEndpointPreparation) {
+        return assetEndpointPreparation;
+    }
+
+    preparingAssetEndpoint.value = true;
+    toolbarError.value = '';
+    assetEndpointPreparation = props.ensureAssetUploadUrl();
+
+    try {
+        const url = await assetEndpointPreparation;
+
+        if (!url) {
+            toolbarError.value = 'The private lesson draft is not ready yet.';
+        }
+
+        return url;
+    } catch {
+        toolbarError.value =
+            'The private lesson draft could not be prepared. Try again.';
+
+        return null;
+    } finally {
+        assetEndpointPreparation = null;
+        preparingAssetEndpoint.value = false;
+    }
 }
 
 function responseError(
@@ -908,8 +952,11 @@ function isImageSize(
             v-if="!assetUploadUrl"
             class="border-b bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
         >
-            Select a module to enable private image and PDF uploads. Your draft
-            will be prepared automatically.
+            {{
+                canPrepareAssetUpload
+                    ? 'Your private draft will be prepared when you insert an image, PDF, or open Preview.'
+                    : 'Select a module to enable private image and PDF uploads.'
+            }}
         </p>
         <p
             v-if="toolbarError"

@@ -14,22 +14,23 @@ import type {
     ModuleOption,
     ProgramOption,
 } from '@/types/academic';
+import type { NewLessonAuthoringProps } from '@/types/lesson-authoring';
 import type { LessonDocument } from '@/types/lesson-content';
 
-defineProps<{
-    programs: ProgramOption[];
-    courses: HierarchyCourseOption[];
-    competencies: CompetencyOption[];
-    modules: ModuleOption[];
-    statuses: AcademicStatusOption[];
-    contentDocument: LessonDocument;
-    assetUploadUrl: string | null;
-    previewUrl: string | null;
-    draftEnsureUrl: string;
-}>();
+defineProps<
+    {
+        programs: ProgramOption[];
+        courses: HierarchyCourseOption[];
+        competencies: CompetencyOption[];
+        modules: ModuleOption[];
+        statuses: AcademicStatusOption[];
+        contentDocument: LessonDocument;
+    } & NewLessonAuthoringProps
+>();
 
 const draftDiscardUrl = ref<string | null>(null);
 const cancelling = ref(false);
+const authoringBusy = ref(false);
 
 function rememberDraft(draft: { id: number; discardUrl: string }): void {
     draftDiscardUrl.value = draft.discardUrl;
@@ -97,19 +98,23 @@ defineOptions({
                         :asset-upload-url="assetUploadUrl"
                         :preview-url="previewUrl"
                         :draft-ensure-url="draftEnsureUrl"
+                        @authoring-busy="authoringBusy = $event"
                         @draft-ready="rememberDraft"
                     />
                     <div class="flex justify-end gap-3">
                         <Button
                             type="button"
                             variant="outline"
-                            :disabled="cancelling || processing"
+                            :disabled="
+                                cancelling || processing || authoringBusy
+                            "
                             @click="cancelAuthoring"
                         >
                             {{ cancelling ? 'Closing…' : 'Cancel' }}
                         </Button>
-                        >
-                        <Button type="submit" :disabled="processing"
+                        <Button
+                            type="submit"
+                            :disabled="processing || authoringBusy"
                             >Create lesson</Button
                         >
                     </div>

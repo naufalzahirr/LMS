@@ -32,6 +32,33 @@ class LessonDraftAuthoringTest extends TestCase
         Storage::fake('local');
     }
 
+    public function test_create_and_edit_pages_expose_the_complete_authoring_contract(): void
+    {
+        $admin = $this->user('Admin');
+
+        $this->actingAs($admin)
+            ->get(route('admin.lessons.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('admin/lessons/Create')
+                ->where('assetUploadUrl', null)
+                ->where('previewUrl', null)
+                ->where('draftEnsureUrl', route('admin.lesson-drafts.store')));
+
+        $this->assertDatabaseCount('lessons', 0);
+
+        $lesson = Lesson::factory()->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.lessons.edit', $lesson))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('admin/lessons/Edit')
+                ->where('assetUploadUrl', route('admin.lesson-assets.store', $lesson))
+                ->where('previewUrl', route('admin.lessons.preview', $lesson))
+                ->where('draftEnsureUrl', null));
+    }
+
     public function test_admin_can_upload_multimedia_during_initial_authoring_and_finalize_the_same_draft(): void
     {
         $admin = $this->user('Admin');

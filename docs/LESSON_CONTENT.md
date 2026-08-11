@@ -26,7 +26,7 @@ An asset referenced by `content_document` cannot be deleted. Removing a node doe
 
 ## Authoring draft lifecycle
 
-The Create Lesson page begins without a database row. After the author selects a module, `LessonDraftController` creates one private Lesson with `status=inactive`, `is_authoring_draft=true`, its `draft_owner_id`, and a 24-hour expiration. This provides a normal Lesson ID for private image/PDF routes without a save-and-reopen step. Changing the selected module moves that same history-free draft after the target module is authorized; it does not create a chain of drafts.
+The Create Lesson page begins without a database row. Selecting a module only makes draft-backed authoring available; the first image/PDF action or Preview request lazily asks `LessonDraftController` for one private Lesson with `status=inactive`, `is_authoring_draft=true`, its `draft_owner_id`, and a 24-hour expiration. This provides a normal Lesson ID for private media routes without a save-and-reopen step while avoiding empty drafts when authors only select hierarchy options. Changing the selected module moves that same history-free draft on its next draft-backed action after the target module is authorized; it does not create a chain of drafts.
 
 Admins retain their normal lesson permissions. A Tutor must be assigned to the target course and may access only their own authoring draft. Drafts are omitted from the normal author list and all student hierarchy queries. Student lesson, asset, and preview access is rejected even if an ID is guessed.
 

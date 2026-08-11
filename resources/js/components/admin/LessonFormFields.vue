@@ -21,6 +21,11 @@ import type {
     ModuleOption,
     ProgramOption,
 } from '@/types/academic';
+import type {
+    LessonAuthoringProps,
+    LessonDraftAuthoringState,
+    LessonDraftEnsureResponse,
+} from '@/types/lesson-authoring';
 import { canonicalLessonDocument } from '@/types/lesson-content';
 import type { LessonDocument } from '@/types/lesson-content';
 
@@ -37,22 +42,22 @@ type InitialLesson = {
     status: AcademicStatus;
 };
 
-const props = defineProps<{
-    programs: ProgramOption[];
-    courses: HierarchyCourseOption[];
-    competencies: CompetencyOption[];
-    modules: ModuleOption[];
-    statuses: AcademicStatusOption[];
-    errors: Record<string, string>;
-    contentDocument: LessonDocument;
-    assetUploadUrl: string | null;
-    previewUrl: string | null;
-    draftEnsureUrl: string | null;
-    initial?: InitialLesson;
-}>();
+const props = defineProps<
+    {
+        programs: ProgramOption[];
+        courses: HierarchyCourseOption[];
+        competencies: CompetencyOption[];
+        modules: ModuleOption[];
+        statuses: AcademicStatusOption[];
+        errors: Record<string, string>;
+        contentDocument: LessonDocument;
+        initial?: InitialLesson;
+    } & LessonAuthoringProps
+>();
 
 const emit = defineEmits<{
     'draft-ready': [draft: { id: number; discardUrl: string }];
+    'authoring-busy': [busy: boolean];
 }>();
 
 const selection = reactive({
@@ -66,17 +71,15 @@ const document = ref<LessonDocument>(
 );
 const activeAssetUploadUrl = ref(props.assetUploadUrl);
 const activePreviewUrl = ref(props.previewUrl);
-const draftAssetUploadUrl = ref<string | null>(null);
-const draftPreviewUrl = ref<string | null>(null);
 const draftId = ref<number | null>(null);
-const draftModuleId = ref<number | null>(null);
-const requestedDraftModuleId = ref<number | null>(null);
+const draftState = ref<LessonDraftAuthoringState | null>(null);
 const draftLoading = ref(false);
 const draftError = ref('');
 const mode = ref<'edit' | 'preview'>('edit');
 const previewDocument = ref<LessonDocument | null>(null);
 const previewLoading = ref(false);
 const previewError = ref('');
+let draftPreparation: Promise<LessonDraftAuthoringState | null> | null = null;
 const availableCourses = computed(() =>
     props.courses.filter(
         (course) => course.program_id === Number(selection.program_id),
@@ -91,6 +94,12 @@ const availableModules = computed(() =>
     props.modules.filter(
         (module) => module.competency_id === Number(selection.competency_id),
     ),
+);
+
+watch(
+    () => draftLoading.value || previewLoading.value,
+    (busy) => emit('authoring-busy', busy),
+    { immediate: true },
 );
 
 watch(
@@ -133,18 +142,17 @@ watch(
 
 watch(
     () => selection.module_id,
-    (moduleId) => {
+    () => {
         if (!props.draftEnsureUrl) {
             return;
         }
 
-        const parsed = Number(moduleId);
-        requestedDraftModuleId.value =
-            Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+        const moduleId = selectedModuleId();
 
-        if (requestedDraftModuleId.value === draftModuleId.value) {
-            activeAssetUploadUrl.value = draftAssetUploadUrl.value;
-            activePreviewUrl.value = draftPreviewUrl.value;
+        if (moduleId !== null && moduleId === draftState.value?.moduleId) {
+            draftError.value = '';
+            activeAssetUploadUrl.value = draftState.value.assetUploadUrl;
+            activePreviewUrl.value = draftState.value.previewUrl;
 
             return;
         }
@@ -152,86 +160,136 @@ watch(
         activeAssetUploadUrl.value = null;
         activePreviewUrl.value = null;
         mode.value = 'edit';
-        void prepareRequestedDraft();
+        previewDocument.value = null;
+        previewError.value = '';
     },
 );
 
-async function prepareRequestedDraft(): Promise<void> {
-    if (draftLoading.value || !props.draftEnsureUrl) {
-        return;
+async function ensureDraftForCurrentModule(): Promise<LessonDraftAuthoringState | null> {
+    const moduleId = selectedModuleId();
+
+    if (!props.draftEnsureUrl || moduleId === null) {
+        draftError.value = 'Select a module before uploading or previewing.';
+
+        return null;
     }
 
-    draftLoading.value = true;
+    if (draftState.value?.moduleId === moduleId) {
+        draftError.value = '';
+        activeAssetUploadUrl.value = draftState.value.assetUploadUrl;
+        activePreviewUrl.value = draftState.value.previewUrl;
+
+        return draftState.value;
+    }
+
+    if (draftPreparation) {
+        const prepared = await draftPreparation;
+
+        if (!prepared) {
+            return null;
+        }
+
+        return ensureDraftForCurrentModule();
+    }
+
     draftError.value = '';
+    draftLoading.value = true;
+    const preparation = requestDraft(moduleId);
+    draftPreparation = preparation;
+    let prepared: LessonDraftAuthoringState | null;
 
     try {
-        while (
-            requestedDraftModuleId.value !== null &&
-            requestedDraftModuleId.value !== draftModuleId.value
-        ) {
-            const moduleId = requestedDraftModuleId.value;
-            const response = await fetch(props.draftEnsureUrl, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken(),
-                },
-                body: JSON.stringify({
-                    module_id: moduleId,
-                    draft_id: draftId.value,
-                }),
-                credentials: 'same-origin',
-            });
-            const payload = (await response.json()) as {
-                draft?: {
-                    id: number;
-                    asset_upload_url: string;
-                    preview_url: string;
-                    discard_url: string;
-                };
-                message?: string;
-                errors?: Record<string, string[]>;
-            };
-
-            if (!response.ok || !payload.draft) {
-                draftError.value = responseError(
-                    payload,
-                    'The private lesson draft could not be prepared.',
-                );
-
-                return;
-            }
-
-            draftId.value = payload.draft.id;
-            draftModuleId.value = moduleId;
-            draftAssetUploadUrl.value = payload.draft.asset_upload_url;
-            draftPreviewUrl.value = payload.draft.preview_url;
-
-            if (requestedDraftModuleId.value === moduleId) {
-                activeAssetUploadUrl.value = draftAssetUploadUrl.value;
-                activePreviewUrl.value = draftPreviewUrl.value;
-            }
-
-            emit('draft-ready', {
-                id: payload.draft.id,
-                discardUrl: payload.draft.discard_url,
-            });
+        prepared = await preparation;
+    } finally {
+        if (draftPreparation === preparation) {
+            draftPreparation = null;
         }
+
+        draftLoading.value = false;
+    }
+
+    if (!prepared) {
+        return null;
+    }
+
+    if (selectedModuleId() !== prepared.moduleId) {
+        return ensureDraftForCurrentModule();
+    }
+
+    activeAssetUploadUrl.value = prepared.assetUploadUrl;
+    activePreviewUrl.value = prepared.previewUrl;
+
+    return prepared;
+}
+
+async function requestDraft(
+    moduleId: number,
+): Promise<LessonDraftAuthoringState | null> {
+    try {
+        const response = await fetch(props.draftEnsureUrl!, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            body: JSON.stringify({
+                module_id: moduleId,
+                draft_id: draftId.value,
+            }),
+            credentials: 'same-origin',
+        });
+        const payload = (await response.json()) as LessonDraftEnsureResponse;
+
+        if (!response.ok || !payload.draft) {
+            draftError.value = responseError(
+                payload,
+                'The private lesson draft could not be prepared.',
+            );
+
+            return null;
+        }
+
+        const prepared: LessonDraftAuthoringState = {
+            id: payload.draft.id,
+            moduleId,
+            assetUploadUrl: payload.draft.asset_upload_url,
+            previewUrl: payload.draft.preview_url,
+            discardUrl: payload.draft.discard_url,
+            expiresAt: payload.draft.expires_at,
+        };
+        draftId.value = prepared.id;
+        draftState.value = prepared;
+        emit('draft-ready', {
+            id: prepared.id,
+            discardUrl: prepared.discardUrl,
+        });
+
+        return prepared;
     } catch {
         draftError.value =
             'The draft could not be prepared. Check your connection and try again.';
-    } finally {
-        draftLoading.value = false;
+
+        return null;
     }
+}
+
+async function ensureAssetUploadUrl(): Promise<string | null> {
+    const prepared = await ensureDraftForCurrentModule();
+
+    return prepared?.assetUploadUrl ?? null;
 }
 
 async function openPreview(): Promise<void> {
     previewError.value = '';
+    let previewUrl = activePreviewUrl.value;
 
-    if (!activePreviewUrl.value) {
-        previewError.value =
-            'Select a module and wait for the private draft before previewing.';
+    if (!previewUrl && props.draftEnsureUrl) {
+        previewUrl = (await ensureDraftForCurrentModule())?.previewUrl ?? null;
+    }
+
+    if (!previewUrl) {
+        previewError.value = draftError.value || 'Preview is not available.';
 
         return;
     }
@@ -239,7 +297,7 @@ async function openPreview(): Promise<void> {
     previewLoading.value = true;
 
     try {
-        const response = await fetch(activePreviewUrl.value, {
+        const response = await fetch(previewUrl, {
             method: 'POST',
             headers: {
                 Accept: 'application/json',
@@ -293,6 +351,12 @@ function csrfToken(): string {
             .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
             ?.getAttribute('content') ?? ''
     );
+}
+
+function selectedModuleId(): number | null {
+    const moduleId = Number(selection.module_id);
+
+    return Number.isInteger(moduleId) && moduleId > 0 ? moduleId : null;
 }
 </script>
 
@@ -528,7 +592,7 @@ function csrfToken(): string {
                 type="button"
                 size="sm"
                 variant="outline"
-                @click="prepareRequestedDraft"
+                @click="ensureDraftForCurrentModule"
             >
                 Retry
             </Button>
@@ -537,6 +601,12 @@ function csrfToken(): string {
             v-show="mode === 'edit'"
             v-model="document"
             :asset-upload-url="activeAssetUploadUrl"
+            :can-prepare-asset-upload="
+                Boolean(draftEnsureUrl && selectedModuleId())
+            "
+            :ensure-asset-upload-url="
+                draftEnsureUrl ? ensureAssetUploadUrl : undefined
+            "
         />
         <div
             v-if="mode === 'preview' && previewDocument"

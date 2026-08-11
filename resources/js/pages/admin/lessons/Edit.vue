@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Form, Head, Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import LessonController from '@/actions/App/Http/Controllers/Admin/LessonController';
 import LessonFormFields from '@/components/admin/LessonFormFields.vue';
 import Heading from '@/components/Heading.vue';
@@ -14,6 +15,7 @@ import type {
     ModuleOption,
     ProgramOption,
 } from '@/types/academic';
+import type { ExistingLessonAuthoringProps } from '@/types/lesson-authoring';
 import type { LessonDocument } from '@/types/lesson-content';
 
 type EditableLesson = {
@@ -30,17 +32,18 @@ type EditableLesson = {
     status: AcademicStatus;
 };
 
-defineProps<{
-    lesson: EditableLesson;
-    programs: ProgramOption[];
-    courses: HierarchyCourseOption[];
-    competencies: CompetencyOption[];
-    modules: ModuleOption[];
-    statuses: AcademicStatusOption[];
-    assetUploadUrl: string;
-    previewUrl: string;
-    draftEnsureUrl: null;
-}>();
+defineProps<
+    {
+        lesson: EditableLesson;
+        programs: ProgramOption[];
+        courses: HierarchyCourseOption[];
+        competencies: CompetencyOption[];
+        modules: ModuleOption[];
+        statuses: AcademicStatusOption[];
+    } & ExistingLessonAuthoringProps
+>();
+
+const authoringBusy = ref(false);
 
 defineOptions({
     layout: {
@@ -80,12 +83,15 @@ defineOptions({
                         :asset-upload-url="assetUploadUrl"
                         :preview-url="previewUrl"
                         :draft-ensure-url="draftEnsureUrl"
+                        @authoring-busy="authoringBusy = $event"
                     />
                     <div class="flex justify-end gap-3">
                         <Button variant="outline" as-child
                             ><Link :href="show(lesson.id)">Cancel</Link></Button
                         >
-                        <Button type="submit" :disabled="processing"
+                        <Button
+                            type="submit"
+                            :disabled="processing || authoringBusy"
                             >Save changes</Button
                         >
                     </div>
