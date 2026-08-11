@@ -11,11 +11,10 @@ import type {
     AcademicStatusOption,
     CompetencyOption,
     HierarchyCourseOption,
-    LessonType,
-    LessonTypeOption,
     ModuleOption,
     ProgramOption,
 } from '@/types/academic';
+import type { LessonDocument } from '@/types/lesson-content';
 
 type EditableLesson = {
     id: number;
@@ -25,10 +24,7 @@ type EditableLesson = {
     module_id: number;
     title: string;
     slug: string;
-    lesson_type: LessonType;
-    content: string | null;
-    external_url: string | null;
-    has_file: boolean;
+    content_document: LessonDocument;
     duration_minutes: number | null;
     sort_order: number;
     status: AcademicStatus;
@@ -40,8 +36,8 @@ defineProps<{
     courses: HierarchyCourseOption[];
     competencies: CompetencyOption[];
     modules: ModuleOption[];
-    lessonTypes: LessonTypeOption[];
     statuses: AcademicStatusOption[];
+    assetUploadUrl: string;
 }>();
 
 defineOptions({
@@ -59,15 +55,14 @@ defineOptions({
     <div class="flex h-full flex-1 flex-col gap-6 p-4 md:p-6">
         <Heading
             title="Edit lesson"
-            description="Update lesson content, placement, and supporting file."
+            description="Update lesson information and its multimedia learning flow."
         />
-        <Card class="max-w-3xl">
+        <Card class="max-w-6xl">
             <CardContent>
                 <Form
                     :action="LessonController.update.url(lesson.id)"
                     method="post"
-                    enctype="multipart/form-data"
-                    class="space-y-6"
+                    class="space-y-8"
                     v-slot="{ errors, processing }"
                 >
                     <input type="hidden" name="_method" value="put" />
@@ -76,10 +71,11 @@ defineOptions({
                         :courses="courses"
                         :competencies="competencies"
                         :modules="modules"
-                        :lesson-types="lessonTypes"
                         :statuses="statuses"
                         :errors="errors"
                         :initial="lesson"
+                        :content-document="lesson.content_document"
+                        :asset-upload-url="assetUploadUrl"
                     />
                     <div class="flex justify-end gap-3">
                         <Button variant="outline" as-child

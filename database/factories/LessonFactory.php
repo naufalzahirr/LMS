@@ -20,15 +20,23 @@ class LessonFactory extends Factory
     {
         $title = str(fake()->unique()->sentence(4))->trim('.')->toString();
         $slugSuffix = fake()->unique()->bothify('###');
+        $content = fake()->paragraph();
 
         return [
             'module_id' => Module::factory(),
             'title' => str($title)->title()->toString(),
             'slug' => str($title)->slug()->append('-', $slugSuffix)->toString(),
             'lesson_type' => LessonType::Text,
-            'content' => fake()->paragraph(),
+            'content' => $content,
             'external_url' => null,
             'file_path' => null,
+            'content_document' => [
+                'type' => 'doc',
+                'content' => [[
+                    'type' => 'paragraph',
+                    'content' => [['type' => 'text', 'text' => $content]],
+                ]],
+            ],
             'duration_minutes' => fake()->numberBetween(10, 60),
             'sort_order' => fake()->numberBetween(0, 20),
             'status' => AcademicStatus::Active,
@@ -42,6 +50,7 @@ class LessonFactory extends Factory
             'content' => 'Optional teacher notes for this video.',
             'external_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
             'file_path' => null,
+            'content_document' => null,
         ]);
     }
 
@@ -52,6 +61,7 @@ class LessonFactory extends Factory
             'content' => 'A useful external learning resource.',
             'external_url' => 'https://developer.mozilla.org/',
             'file_path' => null,
+            'content_document' => null,
         ]);
     }
 
@@ -62,6 +72,7 @@ class LessonFactory extends Factory
             'content' => 'Notes for the accompanying document.',
             'external_url' => null,
             'file_path' => null,
+            'content_document' => null,
         ])->afterCreating(function (Lesson $lesson): void {
             $lesson->forceFill(['file_path' => "lesson-files/{$lesson->id}/document.pdf"])->save();
         });
@@ -74,6 +85,7 @@ class LessonFactory extends Factory
             'content' => 'Notes for the accompanying image.',
             'external_url' => null,
             'file_path' => null,
+            'content_document' => null,
         ])->afterCreating(function (Lesson $lesson): void {
             $lesson->forceFill(['file_path' => "lesson-files/{$lesson->id}/image.png"])->save();
         });

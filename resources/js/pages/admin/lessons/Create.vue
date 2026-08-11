@@ -10,18 +10,19 @@ import type {
     AcademicStatusOption,
     CompetencyOption,
     HierarchyCourseOption,
-    LessonTypeOption,
     ModuleOption,
     ProgramOption,
 } from '@/types/academic';
+import type { LessonDocument } from '@/types/lesson-content';
 
 defineProps<{
     programs: ProgramOption[];
     courses: HierarchyCourseOption[];
     competencies: CompetencyOption[];
     modules: ModuleOption[];
-    lessonTypes: LessonTypeOption[];
     statuses: AcademicStatusOption[];
+    contentDocument: LessonDocument;
+    assetUploadUrl: string | null;
 }>();
 
 defineOptions({
@@ -39,15 +40,14 @@ defineOptions({
     <div class="flex h-full flex-1 flex-col gap-6 p-4 md:p-6">
         <Heading
             title="Create lesson"
-            description="Add reusable learning content to a module."
+            description="Build a rich multimedia learning page inside a module."
         />
-        <Card class="max-w-3xl">
+        <Card class="max-w-6xl">
             <CardContent>
                 <Form
                     v-bind="LessonController.store.form()"
-                    enctype="multipart/form-data"
                     reset-on-success
-                    class="space-y-6"
+                    class="space-y-8"
                     v-slot="{ errors, processing }"
                 >
                     <LessonFormFields
@@ -55,9 +55,10 @@ defineOptions({
                         :courses="courses"
                         :competencies="competencies"
                         :modules="modules"
-                        :lesson-types="lessonTypes"
                         :statuses="statuses"
                         :errors="errors"
+                        :content-document="contentDocument"
+                        :asset-upload-url="assetUploadUrl"
                     />
                     <div class="flex justify-end gap-3">
                         <Button variant="outline" as-child

@@ -1,6 +1,6 @@
 # Mastery Learning Center
 
-Mastery Learning Center is a Laravel and Vue application for competency-based learning. It supports academic content authoring, class delivery, assessment attempts and grading, mastery evaluation, remedial learning, parent visibility, and progress reporting.
+Mastery Learning Center is a Laravel and Vue application for competency-based learning. It supports rich multimedia Lesson authoring, class delivery, assessment attempts and grading, mastery evaluation, remedial learning, parent visibility, and progress reporting.
 
 ## Technology
 
@@ -73,5 +73,7 @@ Dependency checks:
 Do not deploy with development defaults. Use `APP_ENV=production`, `APP_DEBUG=false`, HTTPS, secure cookies, a durable MySQL database, a supervised queue worker, and a cron-driven scheduler. Point the web server document root at `public/`, never the repository root.
 
 See [Deployment](docs/DEPLOYMENT.md), [Operations](docs/OPERATIONS.md), and [Security and access matrix](docs/SECURITY.md). Candidate post-V1 ideas are documented in [Roadmap](docs/ROADMAP.md).
+
+The structured Tiptap Lesson format, private asset policy, and legacy conversion strategy are documented in [Rich lesson content](docs/LESSON_CONTENT.md).
 
 The application health endpoint is `GET /up`.

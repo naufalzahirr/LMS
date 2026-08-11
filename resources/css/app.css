@@ -79,6 +79,155 @@
     }
 }
 
+@layer components {
+    .editor-button,
+    .editor-button-with-label {
+        @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40;
+    }
+
+    .editor-button svg,
+    .editor-button-with-label svg {
+        @apply size-4;
+    }
+
+    .editor-button-active {
+        @apply bg-accent text-accent-foreground;
+    }
+
+    .editor-separator {
+        @apply mx-1 h-5 w-px bg-border;
+    }
+
+    .editor-select {
+        @apply h-8 rounded-md border bg-background px-2 text-xs text-foreground;
+    }
+
+    .rich-lesson-editor .tiptap > *:first-child {
+        margin-top: 0;
+    }
+
+    .rich-lesson-editor .tiptap p {
+        @apply my-3 leading-7;
+    }
+
+    .rich-lesson-editor .tiptap h1 {
+        @apply mt-8 mb-3 text-3xl font-semibold tracking-tight;
+    }
+
+    .rich-lesson-editor .tiptap h2 {
+        @apply mt-7 mb-3 text-2xl font-semibold tracking-tight;
+    }
+
+    .rich-lesson-editor .tiptap h3 {
+        @apply mt-6 mb-2 text-xl font-semibold tracking-tight;
+    }
+
+    .rich-lesson-editor .tiptap ul {
+        @apply my-4 list-disc space-y-1 pl-6;
+    }
+
+    .rich-lesson-editor .tiptap ol {
+        @apply my-4 list-decimal space-y-1 pl-6;
+    }
+
+    .rich-lesson-editor .tiptap blockquote {
+        @apply my-5 border-l-4 pl-4 text-muted-foreground italic;
+    }
+
+    .rich-lesson-editor .tiptap a {
+        @apply font-medium text-primary underline underline-offset-4;
+    }
+
+    .rich-lesson-editor .tiptap table {
+        @apply my-5 w-full border-collapse text-sm;
+    }
+
+    .rich-lesson-editor .tiptap th,
+    .rich-lesson-editor .tiptap td {
+        @apply min-w-24 border px-3 py-2 align-top;
+    }
+
+    .rich-lesson-editor .tiptap th {
+        @apply bg-muted/60 font-semibold;
+    }
+
+    .rich-lesson-editor .tiptap pre {
+        @apply my-5 overflow-x-auto rounded-lg bg-zinc-950 p-4 font-mono text-sm text-zinc-100;
+    }
+
+    .rich-lesson-editor .tiptap figure[data-lesson-image] {
+        @apply my-6 rounded-lg border bg-muted/20 p-3 text-center;
+    }
+
+    .rich-lesson-editor .tiptap figure[data-lesson-image] img {
+        @apply mx-auto max-h-[32rem] max-w-full rounded-md object-contain;
+    }
+
+    .rich-lesson-editor .tiptap figcaption {
+        @apply mt-2 text-sm text-muted-foreground;
+    }
+
+    .lesson-editor-embed,
+    .lesson-editor-file {
+        @apply my-5 flex flex-col gap-1 rounded-lg border bg-muted/30 p-4;
+    }
+
+    .lesson-editor-embed span,
+    .lesson-editor-file span {
+        @apply text-sm text-muted-foreground;
+    }
+
+    .rich-lesson-editor .tiptap aside[data-lesson-callout] {
+        @apply my-5 rounded-lg border border-blue-300 bg-blue-50 p-4 text-blue-950 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-100;
+    }
+
+    .lesson-editor-callout-label {
+        @apply mb-2 block text-xs font-bold tracking-wide uppercase;
+    }
+
+    .rich-lesson-editor .ProseMirror-selectednode {
+        @apply ring-2 ring-primary ring-offset-2;
+    }
+
+    .hljs-keyword,
+    .hljs-selector-tag,
+    .hljs-literal,
+    .hljs-section,
+    .hljs-link {
+        color: #c084fc;
+    }
+
+    .hljs-string,
+    .hljs-title,
+    .hljs-name,
+    .hljs-type,
+    .hljs-attribute,
+    .hljs-symbol,
+    .hljs-bullet,
+    .hljs-addition,
+    .hljs-variable,
+    .hljs-template-tag,
+    .hljs-template-variable {
+        color: #86efac;
+    }
+
+    .hljs-comment,
+    .hljs-quote,
+    .hljs-deletion,
+    .hljs-meta {
+        color: #a1a1aa;
+    }
+
+    .hljs-number,
+    .hljs-regexp,
+    .hljs-selector-id,
+    .hljs-selector-class,
+    .hljs-built_in,
+    .hljs-builtin-name {
+        color: #67e8f9;
+    }
+}
+
 @layer utilities {
     body,
     html {

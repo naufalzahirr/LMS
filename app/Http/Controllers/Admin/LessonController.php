@@ -10,9 +10,12 @@ use App\Http\Requests\Admin\UpdateLessonRequest;
 use App\Models\Competency;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\LessonAsset;
 use App\Models\Module;
 use App\Models\Program;
 use App\Models\User;
+use App\Services\LessonContentMigrationService;
+use App\Services\LessonContentService;
 use App\Services\LessonService;
 use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +31,8 @@ class LessonController extends Controller
     public function __construct(
         private readonly LessonService $lessonService,
         private readonly TutorCourseAccessService $tutorCourseAccess,
+        private readonly LessonContentService $lessonContent,
+        private readonly LessonContentMigrationService $contentMigration,
     ) {}
 
     public function index(Request $request): Response
@@ -140,8 +145,9 @@ class LessonController extends Controller
 
         return Inertia::render('admin/lessons/Create', [
             ...$this->hierarchyOptions($user, true),
-            'lessonTypes' => LessonType::options(),
             'statuses' => AcademicStatus::options(),
+            'contentDocument' => $this->lessonContent->emptyDocument(),
+            'assetUploadUrl' => null,
         ]);
     }
 
@@ -157,6 +163,7 @@ class LessonController extends Controller
     public function show(Lesson $lesson): Response
     {
         $this->authorize('view', $lesson);
+        $lesson = $this->contentMigration->migrateLesson($lesson);
         $lesson->load('module.competency.course.program');
         $hasFile = $lesson->managedFilePath() !== null;
 
@@ -175,6 +182,13 @@ class LessonController extends Controller
                 'program' => $lesson->module->competency->course->program->name,
                 'file_url' => $hasFile ? route('admin.lessons.file', $lesson) : null,
                 'file_download_url' => $hasFile ? route('admin.lessons.file', [$lesson, 'download' => 1]) : null,
+                'content_document' => $this->lessonContent->forRendering(
+                    $lesson,
+                    fn (LessonAsset $asset): array => [
+                        'url' => route('admin.lesson-assets.file', [$lesson, $asset]),
+                        'downloadUrl' => route('admin.lesson-assets.file', [$lesson, $asset, 'download' => 1]),
+                    ],
+                ),
             ],
             'canManage' => request()->user()?->can('update', $lesson) ?? false,
         ]);
@@ -183,6 +197,7 @@ class LessonController extends Controller
     public function edit(Lesson $lesson): Response
     {
         $this->authorize('update', $lesson);
+        $lesson = $this->contentMigration->migrateLesson($lesson);
         $lesson->load('module.competency.course');
         $user = request()->user();
         abort_unless($user instanceof User, 401);
@@ -200,13 +215,20 @@ class LessonController extends Controller
                 'content' => $lesson->content,
                 'external_url' => $lesson->external_url,
                 'has_file' => $lesson->managedFilePath() !== null,
+                'content_document' => $this->lessonContent->forRendering(
+                    $lesson,
+                    fn (LessonAsset $asset): array => [
+                        'url' => route('admin.lesson-assets.file', [$lesson, $asset]),
+                        'downloadUrl' => route('admin.lesson-assets.file', [$lesson, $asset, 'download' => 1]),
+                    ],
+                ),
                 'duration_minutes' => $lesson->duration_minutes,
                 'sort_order' => $lesson->sort_order,
                 'status' => $lesson->status->value,
             ],
             ...$this->hierarchyOptions($user, true),
-            'lessonTypes' => LessonType::options(),
             'statuses' => AcademicStatus::options(),
+            'assetUploadUrl' => route('admin.lesson-assets.store', $lesson),
         ]);
     }
 

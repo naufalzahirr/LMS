@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { ArrowLeft, Download, ExternalLink, Pencil } from '@lucide/vue';
+import { ArrowLeft, Pencil } from '@lucide/vue';
 import LessonController from '@/actions/App/Http/Controllers/Admin/LessonController';
 import Heading from '@/components/Heading.vue';
+import LessonContentRenderer from '@/components/lesson/LessonContentRenderer.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { index } from '@/routes/admin/lessons';
 import type { AcademicStatus, LessonType } from '@/types/academic';
+import type { LessonDocument } from '@/types/lesson-content';
 
 type PreviewLesson = {
     id: number;
@@ -23,6 +25,7 @@ type PreviewLesson = {
     program: string;
     file_url: string | null;
     file_download_url: string | null;
+    content_document: LessonDocument;
 };
 
 defineProps<{ lesson: PreviewLesson; canManage: boolean }>();
@@ -82,7 +85,7 @@ defineOptions({
                     <p class="mt-1 text-sm">{{ lesson.module }}</p>
                 </div>
                 <div class="flex items-start gap-2">
-                    <Badge variant="outline">{{ lesson.lesson_type }}</Badge
+                    <Badge variant="outline">Multimedia lesson</Badge
                     ><Badge
                         :variant="
                             lesson.status === 'active' ? 'default' : 'secondary'
@@ -99,82 +102,11 @@ defineOptions({
 
         <Card>
             <CardHeader><CardTitle>Content preview</CardTitle></CardHeader>
-            <CardContent class="space-y-5">
-                <div
-                    v-if="lesson.lesson_type === 'text'"
-                    class="leading-7 whitespace-pre-wrap"
-                >
-                    {{ lesson.content }}
-                </div>
-                <div
-                    v-else-if="lesson.lesson_type === 'video'"
-                    class="space-y-4"
-                >
-                    <p class="text-sm text-muted-foreground">
-                        Open the validated external video in a new tab.
-                    </p>
-                    <Button as-child
-                        ><a
-                            :href="lesson.external_url ?? '#'"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            ><ExternalLink /> Open video</a
-                        ></Button
-                    >
-                </div>
-                <div
-                    v-else-if="lesson.lesson_type === 'link'"
-                    class="space-y-4"
-                >
-                    <p class="text-sm text-muted-foreground">
-                        This lesson points to an external learning resource.
-                    </p>
-                    <Button as-child
-                        ><a
-                            :href="lesson.external_url ?? '#'"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            ><ExternalLink /> Open resource</a
-                        ></Button
-                    >
-                </div>
-                <div
-                    v-else-if="lesson.lesson_type === 'document'"
-                    class="flex flex-wrap gap-3"
-                >
-                    <Button v-if="lesson.file_url" as-child
-                        ><a :href="lesson.file_url" target="_blank"
-                            ><ExternalLink /> View document</a
-                        ></Button
-                    >
-                    <Button
-                        v-if="lesson.file_download_url"
-                        variant="outline"
-                        as-child
-                        ><a :href="lesson.file_download_url"
-                            ><Download /> Download document</a
-                        ></Button
-                    >
-                </div>
-                <img
-                    v-else-if="
-                        lesson.lesson_type === 'image' && lesson.file_url
-                    "
-                    :src="lesson.file_url"
-                    :alt="lesson.title"
-                    class="max-h-[36rem] rounded-lg border object-contain"
-                />
-
-                <div
-                    v-if="lesson.lesson_type !== 'text' && lesson.content"
-                    class="border-t pt-5"
-                >
-                    <p class="mb-2 text-sm font-medium">Teacher notes</p>
-                    <p
-                        class="text-sm leading-6 whitespace-pre-wrap text-muted-foreground"
-                    >
-                        {{ lesson.content }}
-                    </p>
+            <CardContent>
+                <div class="mx-auto max-w-4xl">
+                    <LessonContentRenderer
+                        :document="lesson.content_document"
+                    />
                 </div>
             </CardContent>
         </Card>

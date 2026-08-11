@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $content
  * @property string|null $external_url
  * @property string|null $file_path
+ * @property array<string, mixed>|null $content_document
  * @property int|null $duration_minutes
  * @property int $sort_order
  * @property AcademicStatus $status
@@ -33,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Module $module
  * @property-read Collection<int, LessonProgress> $progressRecords
+ * @property-read Collection<int, LessonAsset> $assets
  * @property-read Collection<int, MasteryRule> $defaultRemedialRules
  * @property-read Collection<int, RemedialAssignmentLesson> $remedialAssignmentLessons
  */
@@ -43,6 +45,7 @@ use Illuminate\Support\Carbon;
     'lesson_type',
     'content',
     'external_url',
+    'content_document',
     'duration_minutes',
     'sort_order',
     'status',
@@ -67,6 +70,12 @@ class Lesson extends Model
     public function progressRecords(): HasMany
     {
         return $this->hasMany(LessonProgress::class);
+    }
+
+    /** @return HasMany<LessonAsset, $this> */
+    public function assets(): HasMany
+    {
+        return $this->hasMany(LessonAsset::class);
     }
 
     /** @return BelongsToMany<MasteryRule, $this> */
@@ -111,6 +120,7 @@ class Lesson extends Model
     {
         return [
             'lesson_type' => LessonType::class,
+            'content_document' => 'array',
             'duration_minutes' => 'integer',
             'sort_order' => 'integer',
             'status' => AcademicStatus::class,

@@ -14,24 +14,42 @@ use Throwable;
 
 class LessonService
 {
+    public function __construct(
+        private readonly LessonContentService $contentService,
+        private readonly LessonContentMigrationService $contentMigration,
+    ) {}
+
     /**
-     * @param  array{module_id: int, title: string, slug: string, lesson_type: LessonType, content: string|null, external_url: string|null, duration_minutes: int|null, sort_order: int, status: AcademicStatus}  $data
+     * @param  array{module_id: int, title: string, slug: string, lesson_type: LessonType, content: string|null, external_url: string|null, content_document: array<string, mixed>|null, rich_content: bool, duration_minutes: int|null, sort_order: int, status: AcademicStatus}  $data
      */
     public function create(array $data, ?UploadedFile $file): Lesson
     {
         $storedPath = null;
 
         try {
-            return DB::transaction(function () use ($data, $file, &$storedPath): Lesson {
-                $lesson = Lesson::query()->create($data);
+            $lesson = DB::transaction(function () use ($data, $file, &$storedPath): Lesson {
+                $lesson = Lesson::query()->create($this->legacyAttributes($data));
 
                 if ($file !== null) {
                     $storedPath = $this->storeFile($lesson, $file);
                     $lesson->forceFill(['file_path' => $storedPath])->save();
                 }
 
+                if ($data['rich_content']) {
+                    $lesson->forceFill([
+                        'content_document' => $this->contentService->normalize(
+                            $lesson,
+                            $data['content_document'] ?? $this->contentService->emptyDocument(),
+                        ),
+                    ])->save();
+                }
+
                 return $lesson->refresh();
             });
+
+            return $data['rich_content']
+                ? $lesson
+                : $this->contentMigration->migrateLesson($lesson);
         } catch (Throwable $exception) {
             $this->deleteManagedPath($storedPath);
 
@@ -40,7 +58,7 @@ class LessonService
     }
 
     /**
-     * @param  array{module_id: int, title: string, slug: string, lesson_type: LessonType, content: string|null, external_url: string|null, duration_minutes: int|null, sort_order: int, status: AcademicStatus}  $data
+     * @param  array{module_id: int, title: string, slug: string, lesson_type: LessonType, content: string|null, external_url: string|null, content_document: array<string, mixed>|null, rich_content: bool, duration_minutes: int|null, sort_order: int, status: AcademicStatus}  $data
      */
     public function update(Lesson $lesson, array $data, ?UploadedFile $file): Lesson
     {
@@ -51,6 +69,20 @@ class LessonService
             throw ValidationException::withMessages([
                 'module_id' => __('A lesson with learning or remedial history cannot be moved to another module.'),
             ]);
+        }
+
+        if ($data['rich_content']) {
+            $document = $this->contentService->normalize(
+                $lesson,
+                $data['content_document'] ?? $this->contentService->emptyDocument(),
+            );
+
+            $lesson->forceFill([
+                ...$this->metadataAttributes($data),
+                'content_document' => $document,
+            ])->save();
+
+            return $lesson->refresh();
         }
 
         $oldPath = $lesson->managedFilePath();
@@ -67,8 +99,9 @@ class LessonService
 
             $updatedLesson = DB::transaction(function () use ($lesson, $data, $filePath): Lesson {
                 $lesson->forceFill([
-                    ...$data,
+                    ...$this->legacyAttributes($data),
                     'file_path' => $filePath,
+                    'content_document' => null,
                 ])->save();
 
                 return $lesson->refresh();
@@ -79,7 +112,10 @@ class LessonService
             throw $exception;
         }
 
+        $updatedLesson = $this->contentMigration->migrateLesson($updatedLesson);
+
         if ($oldPath !== null && $oldPath !== $updatedLesson->file_path) {
+            $lesson->assets()->where('file_path', $oldPath)->delete();
             $this->deleteManagedPath($oldPath);
         }
 
@@ -91,6 +127,7 @@ class LessonService
         $filePath = $lesson->managedFilePath();
 
         DB::transaction(function () use ($lesson): void {
+            $lesson->assets()->where('file_path', $lesson->file_path)->delete();
             $lesson->forceFill(['file_path' => null])->save();
             $lesson->delete();
         });
@@ -117,5 +154,35 @@ class LessonService
         }
 
         Storage::disk('local')->delete($path);
+    }
+
+    /**
+     * @param  array{module_id: int, title: string, slug: string, lesson_type: LessonType, content: string|null, external_url: string|null, content_document: array<string, mixed>|null, rich_content: bool, duration_minutes: int|null, sort_order: int, status: AcademicStatus}  $data
+     * @return array<string, mixed>
+     */
+    private function legacyAttributes(array $data): array
+    {
+        return [
+            ...$this->metadataAttributes($data),
+            'lesson_type' => $data['lesson_type'],
+            'content' => $data['content'],
+            'external_url' => $data['external_url'],
+        ];
+    }
+
+    /**
+     * @param  array{module_id: int, title: string, slug: string, lesson_type: LessonType, content: string|null, external_url: string|null, content_document: array<string, mixed>|null, rich_content: bool, duration_minutes: int|null, sort_order: int, status: AcademicStatus}  $data
+     * @return array<string, mixed>
+     */
+    private function metadataAttributes(array $data): array
+    {
+        return [
+            'module_id' => $data['module_id'],
+            'title' => $data['title'],
+            'slug' => $data['slug'],
+            'duration_minutes' => $data['duration_minutes'],
+            'sort_order' => $data['sort_order'],
+            'status' => $data['status'],
+        ];
     }
 }

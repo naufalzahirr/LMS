@@ -137,26 +137,35 @@ class AcademicSeeder extends Seeder
                 'type' => LessonType::Text,
                 'content' => 'HTML gives structure and meaning to content on the web.',
                 'external_url' => null,
+                'content_document' => null,
             ],
             [
                 'title' => 'HTML Document Structure',
                 'type' => LessonType::Text,
                 'content' => 'Learn the doctype, html, head, and body elements that form every HTML document.',
                 'external_url' => null,
+                'content_document' => null,
             ],
             [
                 'title' => 'Useful HTML References',
                 'type' => LessonType::Link,
                 'content' => 'Use this reference when exploring HTML elements and attributes.',
                 'external_url' => 'https://developer.mozilla.org/en-US/docs/Web/HTML',
+                'content_document' => null,
             ],
         ]);
 
         $this->lessons($elements, [
-            ['title' => 'Headings and Paragraphs', 'type' => LessonType::Text, 'content' => 'Structure readable text with headings and paragraphs.', 'external_url' => null],
-            ['title' => 'Links and Images', 'type' => LessonType::Text, 'content' => 'Connect pages and add meaningful images with accessible alternatives.', 'external_url' => null],
-            ['title' => 'Tables', 'type' => LessonType::Text, 'content' => 'Represent genuinely tabular data with clear headers and captions.', 'external_url' => null],
-            ['title' => 'Forms', 'type' => LessonType::Text, 'content' => 'Collect user input with labels, controls, and semantic form structure.', 'external_url' => null],
+            ['title' => 'Headings and Paragraphs', 'type' => LessonType::Text, 'content' => 'Structure readable text with headings and paragraphs.', 'external_url' => null, 'content_document' => null],
+            ['title' => 'Links and Images', 'type' => LessonType::Text, 'content' => 'Connect pages and add meaningful images with accessible alternatives.', 'external_url' => null, 'content_document' => null],
+            [
+                'title' => 'HTML Tables',
+                'type' => LessonType::Text,
+                'content' => 'Represent genuinely tabular data with clear headers and captions.',
+                'external_url' => null,
+                'content_document' => $this->richHtmlTableDocument(),
+            ],
+            ['title' => 'Forms', 'type' => LessonType::Text, 'content' => 'Collect user input with labels, controls, and semantic form structure.', 'external_url' => null, 'content_document' => null],
         ]);
     }
 
@@ -181,7 +190,7 @@ class AcademicSeeder extends Seeder
     }
 
     /**
-     * @param  array<int, array{title: string, type: LessonType, content: string, external_url: string|null}>  $lessons
+     * @param  array<int, array{title: string, type: LessonType, content: string, external_url: string|null, content_document: array<string, mixed>|null}>  $lessons
      */
     private function lessons(Module $module, array $lessons): void
     {
@@ -197,6 +206,13 @@ class AcademicSeeder extends Seeder
                     'content' => $data['content'],
                     'external_url' => $data['external_url'],
                     'file_path' => null,
+                    'content_document' => $data['content_document'] ?? [
+                        'type' => 'doc',
+                        'content' => [[
+                            'type' => 'paragraph',
+                            'content' => [['type' => 'text', 'text' => $data['content']]],
+                        ]],
+                    ],
                     'duration_minutes' => 15,
                     'sort_order' => $index + 1,
                     'status' => AcademicStatus::Active,
@@ -204,5 +220,71 @@ class AcademicSeeder extends Seeder
             );
             $lesson->restore();
         }
+    }
+
+    /** @return array<string, mixed> */
+    private function richHtmlTableDocument(): array
+    {
+        return [
+            'type' => 'doc',
+            'content' => [
+                [
+                    'type' => 'heading',
+                    'attrs' => ['level' => 1],
+                    'content' => [['type' => 'text', 'text' => 'What is an HTML Table?']],
+                ],
+                [
+                    'type' => 'paragraph',
+                    'content' => [['type' => 'text', 'text' => 'HTML tables describe relationships between rows and columns of genuinely tabular data.']],
+                ],
+                [
+                    'type' => 'bulletList',
+                    'content' => [
+                        ['type' => 'listItem', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Use table for the data grid.']]]]],
+                        ['type' => 'listItem', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Use th to identify row or column headings.']]]]],
+                        ['type' => 'listItem', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Use caption to explain the table purpose.']]]]],
+                    ],
+                ],
+                [
+                    'type' => 'codeBlock',
+                    'attrs' => ['language' => 'html'],
+                    'content' => [[
+                        'type' => 'text',
+                        'text' => "<table>\n  <tr>\n    <th>Name</th>\n    <th>Score</th>\n  </tr>\n  <tr>\n    <td>Ada</td>\n    <td>95</td>\n  </tr>\n</table>",
+                    ]],
+                ],
+                [
+                    'type' => 'callout',
+                    'attrs' => ['type' => 'tip'],
+                    'content' => [['type' => 'text', 'text' => 'Use <th> for table headings so assistive technology can announce them correctly.']],
+                ],
+                [
+                    'type' => 'externalVideo',
+                    'attrs' => [
+                        'url' => 'https://www.youtube.com/watch?v=UB1O30fR-EE',
+                        'title' => 'HTML table walkthrough',
+                        'caption' => 'A short external walkthrough; seeding never fetches this URL.',
+                        'provider' => 'youtube',
+                        'videoId' => 'UB1O30fR-EE',
+                    ],
+                ],
+                [
+                    'type' => 'paragraph',
+                    'content' => [[
+                        'type' => 'text',
+                        'text' => 'Read the MDN table guide',
+                        'marks' => [[
+                            'type' => 'link',
+                            'attrs' => [
+                                'href' => 'https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Structuring_content/HTML_table_basics',
+                                'target' => '_blank',
+                                'rel' => 'noopener noreferrer',
+                                'class' => null,
+                            ],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
     }
 }

@@ -7,11 +7,14 @@ use App\Models\Competency;
 use App\Models\Enrollment;
 use App\Models\LearningClass;
 use App\Models\Lesson;
+use App\Models\LessonAsset;
 use App\Models\LessonProgress;
 use App\Models\Module;
 use App\Models\User;
 use App\Services\CompetencyAccessService;
 use App\Services\LearningProgressQueryService;
+use App\Services\LessonContentMigrationService;
+use App\Services\LessonContentService;
 use App\Services\LessonProgressService;
 use App\Services\MasteryProgressQueryService;
 use App\Services\StudentLearningAccessService;
@@ -30,6 +33,8 @@ class LessonController extends Controller
         private readonly LearningProgressQueryService $progressQuery,
         private readonly CompetencyAccessService $competencyAccess,
         private readonly MasteryProgressQueryService $masteryProgress,
+        private readonly LessonContentService $lessonContent,
+        private readonly LessonContentMigrationService $contentMigration,
     ) {}
 
     public function show(Request $request, LearningClass $learningClass, Lesson $lesson): Response
@@ -55,12 +60,21 @@ class LessonController extends Controller
             ->whereIn('lesson_id', $lessons->pluck('id')->all())
             ->get()
             ->keyBy('lesson_id');
+        $lesson = $this->contentMigration->migrateLesson($lesson);
+        $lesson->load('module.competency');
+        $completedLessons = $allProgress->filter(
+            fn (LessonProgress $record): bool => $record->status->value === 'completed',
+        )->count();
+        $totalLessons = $lessons->count();
 
         return Inertia::render('student/lessons/Show', [
             'learningClass' => [
                 'id' => $learningClass->id,
                 'name' => $learningClass->name,
                 'course' => $learningClass->course->name,
+                'completed_lessons' => $completedLessons,
+                'total_lessons' => $totalLessons,
+                'progress_percentage' => $totalLessons === 0 ? 0 : (int) round(($completedLessons / $totalLessons) * 100),
             ],
             'lesson' => [
                 'id' => $lesson->id,
@@ -68,7 +82,7 @@ class LessonController extends Controller
                 'lesson_type' => $lesson->lesson_type->value,
                 'content' => $lesson->content,
                 'external_url' => $lesson->external_url,
-                'embed_url' => $this->trustedVideoEmbedUrl($lesson->external_url),
+                'embed_url' => null,
                 'duration_minutes' => $lesson->duration_minutes,
                 'competency' => $lesson->module->competency->name,
                 'module' => $lesson->module->name,
@@ -78,6 +92,13 @@ class LessonController extends Controller
                 'file_download_url' => $lesson->managedFilePath() === null
                     ? null
                     : route('student.lessons.file', [$learningClass, $lesson, 'download' => 1]),
+                'content_document' => $this->lessonContent->forRendering(
+                    $lesson,
+                    fn (LessonAsset $asset): array => [
+                        'url' => route('student.lesson-assets.file', [$learningClass, $lesson, $asset]),
+                        'downloadUrl' => route('student.lesson-assets.file', [$learningClass, $lesson, $asset, 'download' => 1]),
+                    ],
+                ),
                 'progress_status' => $progress?->status->value ?? 'not_started',
             ],
             'canMutate' => $canMutate,
@@ -163,36 +184,5 @@ class LessonController extends Controller
             'title' => $lesson->title,
             'url' => route('student.lessons.show', [$learningClass, $lesson]),
         ];
-    }
-
-    private function trustedVideoEmbedUrl(?string $url): ?string
-    {
-        if ($url === null) {
-            return null;
-        }
-
-        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
-        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
-        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
-
-        if (in_array($host, ['youtube.com', 'www.youtube.com', 'm.youtube.com'], true)) {
-            $id = str_starts_with($path, 'embed/') ? Str::after($path, 'embed/') : ($query['v'] ?? null);
-
-            return is_string($id) && preg_match('/^[A-Za-z0-9_-]{6,20}$/', $id) === 1
-                ? "https://www.youtube-nocookie.com/embed/{$id}"
-                : null;
-        }
-
-        if ($host === 'youtu.be' && preg_match('/^[A-Za-z0-9_-]{6,20}$/', $path) === 1) {
-            return "https://www.youtube-nocookie.com/embed/{$path}";
-        }
-
-        if (in_array($host, ['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'], true)) {
-            $id = Str::afterLast($path, '/');
-
-            return ctype_digit($id) ? "https://player.vimeo.com/video/{$id}" : null;
-        }
-
-        return null;
     }
 }
