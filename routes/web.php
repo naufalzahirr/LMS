@@ -11,6 +11,8 @@ use App\Http\Controllers\Admin\EnrollmentController;
 use App\Http\Controllers\Admin\LearningClassController;
 use App\Http\Controllers\Admin\LessonAssetController;
 use App\Http\Controllers\Admin\LessonController;
+use App\Http\Controllers\Admin\LessonDraftController;
+use App\Http\Controllers\Admin\LessonPreviewController;
 use App\Http\Controllers\Admin\MasteryRuleController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\ParentStudentRelationshipController;
@@ -144,6 +146,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('admin/lessons/{lesson}/file', [LessonController::class, 'file'])
         ->name('admin.lessons.file');
+    Route::post('admin/lesson-drafts', [LessonDraftController::class, 'store'])
+        ->name('admin.lesson-drafts.store');
+    Route::delete('admin/lesson-drafts/{lesson}', [LessonDraftController::class, 'destroy'])
+        ->name('admin.lesson-drafts.destroy');
+    Route::post('admin/lessons/{lesson}/preview', [LessonPreviewController::class, 'store'])
+        ->name('admin.lessons.preview');
     Route::post('admin/lessons/{lesson}/assets', [LessonAssetController::class, 'store'])
         ->name('admin.lesson-assets.store');
     Route::patch('admin/lessons/{lesson}/assets/{asset}', [LessonAssetController::class, 'update'])

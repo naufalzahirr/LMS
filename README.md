@@ -74,6 +74,6 @@ Do not deploy with development defaults. Use `APP_ENV=production`, `APP_DEBUG=fa
 
 See [Deployment](docs/DEPLOYMENT.md), [Operations](docs/OPERATIONS.md), and [Security and access matrix](docs/SECURITY.md). Candidate post-V1 ideas are documented in [Roadmap](docs/ROADMAP.md).
 
-The structured Tiptap Lesson format, private asset policy, and legacy conversion strategy are documented in [Rich lesson content](docs/LESSON_CONTENT.md).
+The structured Tiptap Lesson format, private asset policy, authoring draft lifecycle, shared-renderer preview, cleanup behavior, and legacy conversion strategy are documented in [Rich lesson content](docs/LESSON_CONTENT.md).
 
 The application health endpoint is `GET /up`.

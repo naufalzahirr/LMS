@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\UpdateLessonAssetRequest;
 use App\Models\Lesson;
 use App\Models\LessonAsset;
 use App\Services\LessonAssetService;
+use App\Services\LessonDraftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,7 +16,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LessonAssetController extends Controller
 {
-    public function __construct(private readonly LessonAssetService $assets) {}
+    public function __construct(
+        private readonly LessonAssetService $assets,
+        private readonly LessonDraftService $drafts,
+    ) {}
 
     public function store(StoreLessonAssetRequest $request, Lesson $lesson): JsonResponse
     {
@@ -25,6 +29,7 @@ class LessonAssetController extends Controller
             $request->uploadedFile(),
             $request->metadata(),
         );
+        $this->drafts->extend($lesson);
 
         return response()->json(['asset' => $this->payload($lesson, $asset)], Response::HTTP_CREATED);
     }
@@ -36,9 +41,10 @@ class LessonAssetController extends Controller
     ): JsonResponse {
         $this->ensureBelongsToLesson($lesson, $asset);
 
-        return response()->json([
-            'asset' => $this->payload($lesson, $this->assets->update($asset, $request->metadata())),
-        ]);
+        $updated = $this->assets->update($asset, $request->metadata());
+        $this->drafts->extend($lesson);
+
+        return response()->json(['asset' => $this->payload($lesson, $updated)]);
     }
 
     public function destroy(Request $request, Lesson $lesson, LessonAsset $asset): Response

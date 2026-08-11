@@ -29,6 +29,9 @@ use Illuminate\Support\Carbon;
  * @property int|null $duration_minutes
  * @property int $sort_order
  * @property AcademicStatus $status
+ * @property bool $is_authoring_draft
+ * @property int|null $draft_owner_id
+ * @property Carbon|null $draft_expires_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -49,6 +52,9 @@ use Illuminate\Support\Carbon;
     'duration_minutes',
     'sort_order',
     'status',
+    'is_authoring_draft',
+    'draft_owner_id',
+    'draft_expires_at',
 ])]
 #[Hidden(['file_path'])]
 class Lesson extends Model
@@ -124,6 +130,8 @@ class Lesson extends Model
             'duration_minutes' => 'integer',
             'sort_order' => 'integer',
             'status' => AcademicStatus::class,
+            'is_authoring_draft' => 'boolean',
+            'draft_expires_at' => 'datetime',
         ];
     }
 }

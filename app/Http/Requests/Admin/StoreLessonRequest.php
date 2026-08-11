@@ -18,6 +18,16 @@ class StoreLessonRequest extends FormRequest
     {
         $user = $this->user();
 
+        if ($this->integer('draft_id') > 0) {
+            $draft = $this->draft();
+
+            if (! $draft instanceof Lesson
+                || ! $draft->is_authoring_draft
+                || ! ($user?->can('update', $draft) ?? false)) {
+                return false;
+            }
+        }
+
         if ($user?->hasRole('Admin')) {
             return $user->can('create', Lesson::class);
         }
@@ -35,11 +45,15 @@ class StoreLessonRequest extends FormRequest
         $moduleId = $this->integer('module_id');
         $lessonType = LessonType::tryFrom($this->string('lesson_type')->toString());
         $richContent = is_array($this->input('content_document'));
+        $draft = $this->draft();
 
         return [
+            'draft_id' => ['nullable', 'integer', Rule::exists(Lesson::class, 'id')->where(fn ($query) => $query
+                ->where('is_authoring_draft', true)
+                ->whereNull('deleted_at'))],
             'module_id' => ['required', 'integer', Rule::exists(Module::class, 'id')->whereNull('deleted_at')],
             'title' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255', 'alpha_dash:ascii', Rule::unique(Lesson::class)->where('module_id', $moduleId)],
+            'slug' => ['required', 'string', 'max:255', 'alpha_dash:ascii', Rule::unique(Lesson::class)->where('module_id', $moduleId)->ignore($draft)],
             'lesson_type' => [$richContent ? 'nullable' : 'required', Rule::enum(LessonType::class)],
             'content' => $richContent
                 ? ['prohibited']
@@ -84,6 +98,13 @@ class StoreLessonRequest extends FormRequest
         $file = $this->file('file');
 
         return $file instanceof UploadedFile ? $file : null;
+    }
+
+    public function draft(): ?Lesson
+    {
+        $id = $this->integer('draft_id');
+
+        return $id > 0 ? Lesson::query()->find($id) : null;
     }
 
     protected function prepareForValidation(): void

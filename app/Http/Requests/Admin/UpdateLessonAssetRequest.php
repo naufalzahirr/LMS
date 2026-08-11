@@ -6,6 +6,7 @@ use App\Enums\LessonAssetType;
 use App\Models\Lesson;
 use App\Models\LessonAsset;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateLessonAssetRequest extends FormRequest
 {
@@ -27,7 +28,15 @@ class UpdateLessonAssetRequest extends FormRequest
         $isImage = $asset instanceof LessonAsset && $asset->asset_type === LessonAssetType::Image;
 
         return [
-            'alt_text' => [$isImage ? 'required' : 'prohibited', 'nullable', 'string', 'max:500'],
+            'alt_text' => [
+                $isImage
+                    ? Rule::requiredIf(! $this->boolean('decorative'))
+                    : 'prohibited',
+                'nullable',
+                'string',
+                'max:500',
+            ],
+            'decorative' => $isImage ? ['sometimes', 'boolean'] : ['prohibited'],
             'caption' => ['nullable', 'string', 'max:2000'],
             'file' => ['prohibited'],
             'file_path' => ['prohibited'],

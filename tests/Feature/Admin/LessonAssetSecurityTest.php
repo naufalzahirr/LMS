@@ -55,6 +55,23 @@ class LessonAssetSecurityTest extends TestCase
         ])->assertSessionHasErrors('file_path');
     }
 
+    public function test_explicitly_decorative_image_may_omit_alt_text(): void
+    {
+        $lesson = Lesson::factory()->create();
+        $admin = $this->user('Admin');
+
+        $this->actingAs($admin)->post(route('admin.lesson-assets.store', $lesson), [
+            'asset_type' => 'image',
+            'file' => UploadedFile::fake()->image('divider.png', 800, 80),
+            'decorative' => true,
+        ])->assertCreated()->assertJsonPath('asset.alt_text', null);
+
+        $this->assertDatabaseHas('lesson_assets', [
+            'lesson_id' => $lesson->id,
+            'alt_text' => null,
+        ]);
+    }
+
     public function test_scoped_tutor_uploads_pdf_only_to_an_assigned_active_course(): void
     {
         $lesson = Lesson::factory()->create();

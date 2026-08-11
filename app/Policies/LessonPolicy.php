@@ -18,7 +18,7 @@ class LessonPolicy
 
     public function view(User $user, Lesson $lesson): bool
     {
-        return $this->canAdminManage($user) || $this->tutorCourseAccess->canManageLesson($user, $lesson);
+        return $this->canAdminManage($user) || $this->tutorCanManage($user, $lesson);
     }
 
     public function create(User $user, ?Module $module = null): bool
@@ -34,12 +34,21 @@ class LessonPolicy
 
     public function update(User $user, Lesson $lesson): bool
     {
-        return $this->canAdminManage($user) || $this->tutorCourseAccess->canManageLesson($user, $lesson);
+        return $this->canAdminManage($user) || $this->tutorCanManage($user, $lesson);
     }
 
     public function delete(User $user, Lesson $lesson): bool
     {
-        return $this->canAdminManage($user) || $this->tutorCourseAccess->canManageLesson($user, $lesson);
+        return $this->canAdminManage($user) || $this->tutorCanManage($user, $lesson);
+    }
+
+    private function tutorCanManage(User $user, Lesson $lesson): bool
+    {
+        if (! $this->tutorCourseAccess->canManageLesson($user, $lesson)) {
+            return false;
+        }
+
+        return ! $lesson->is_authoring_draft || $lesson->draft_owner_id === $user->id;
     }
 
     private function canAdminManage(User $user): bool

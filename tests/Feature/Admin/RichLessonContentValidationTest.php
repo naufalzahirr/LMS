@@ -142,6 +142,29 @@ class RichLessonContentValidationTest extends TestCase
         );
     }
 
+    public function test_older_image_nodes_without_display_metadata_receive_safe_defaults(): void
+    {
+        $lesson = Lesson::factory()->create();
+        $image = $this->asset($lesson, LessonAssetType::Image);
+        $document = [
+            'type' => 'doc',
+            'content' => [[
+                'type' => 'lessonImage',
+                'attrs' => ['lessonAssetId' => $image->id],
+            ]],
+        ];
+
+        $this->actingAs($this->admin())
+            ->put(route('admin.lessons.update', $lesson), $this->payload($lesson, $document))
+            ->assertRedirect();
+
+        $attrs = $lesson->fresh()->content_document['content'][0]['attrs'];
+        $this->assertSame('Accessible image', $attrs['altText']);
+        $this->assertSame('center', $attrs['alignment']);
+        $this->assertSame('large', $attrs['size']);
+        $this->assertFalse($attrs['decorative']);
+    }
+
     /** @param array<string, mixed> $document
      * @return array<string, mixed>
      */

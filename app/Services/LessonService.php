@@ -22,8 +22,12 @@ class LessonService
     /**
      * @param  array{module_id: int, title: string, slug: string, lesson_type: LessonType, content: string|null, external_url: string|null, content_document: array<string, mixed>|null, rich_content: bool, duration_minutes: int|null, sort_order: int, status: AcademicStatus}  $data
      */
-    public function create(array $data, ?UploadedFile $file): Lesson
+    public function create(array $data, ?UploadedFile $file, ?Lesson $draft = null): Lesson
     {
+        if ($draft instanceof Lesson) {
+            return $this->finalizeDraft($draft, $data, $file);
+        }
+
         $storedPath = null;
 
         try {
@@ -127,13 +131,64 @@ class LessonService
         $filePath = $lesson->managedFilePath();
 
         DB::transaction(function () use ($lesson): void {
-            $lesson->assets()->where('file_path', $lesson->file_path)->delete();
+            $lesson->assets()->delete();
             $lesson->forceFill(['file_path' => null])->save();
             $lesson->delete();
         });
 
         $this->deleteManagedPath($filePath);
         Storage::disk('local')->deleteDirectory("lesson-files/{$lesson->id}");
+        Storage::disk('local')->deleteDirectory("lesson-assets/{$lesson->id}");
+    }
+
+    /**
+     * @param  array{module_id: int, title: string, slug: string, lesson_type: LessonType, content: string|null, external_url: string|null, content_document: array<string, mixed>|null, rich_content: bool, duration_minutes: int|null, sort_order: int, status: AcademicStatus}  $data
+     */
+    private function finalizeDraft(Lesson $draft, array $data, ?UploadedFile $file): Lesson
+    {
+        $storedPath = null;
+
+        try {
+            $lesson = DB::transaction(function () use ($draft, $data, $file, &$storedPath): Lesson {
+                $lesson = Lesson::query()->lockForUpdate()->findOrFail($draft->id);
+
+                if (! $lesson->is_authoring_draft) {
+                    throw ValidationException::withMessages([
+                        'draft_id' => __('This lesson draft has already been finalized.'),
+                    ]);
+                }
+
+                if ($file !== null) {
+                    $storedPath = $this->storeFile($lesson, $file);
+                }
+
+                $document = $data['rich_content']
+                    ? $this->contentService->normalize(
+                        $lesson,
+                        $data['content_document'] ?? $this->contentService->emptyDocument(),
+                    )
+                    : null;
+
+                $lesson->forceFill([
+                    ...$this->legacyAttributes($data),
+                    'file_path' => $storedPath,
+                    'content_document' => $document,
+                    'is_authoring_draft' => false,
+                    'draft_owner_id' => null,
+                    'draft_expires_at' => null,
+                ])->save();
+
+                return $lesson->refresh();
+            });
+
+            return $data['rich_content']
+                ? $lesson
+                : $this->contentMigration->migrateLesson($lesson);
+        } catch (Throwable $exception) {
+            $this->deleteManagedPath($storedPath);
+
+            throw $exception;
+        }
     }
 
     private function storeFile(Lesson $lesson, UploadedFile $file): string

@@ -18,11 +18,21 @@ Supported content is deliberately limited to:
 
 ## Private assets
 
-`LessonAsset` records belong to one Lesson and have type `image` or `document`. Images accept JPEG, PNG, or WebP up to 10 MB and require alt text. Documents accept PDF up to 20 MB. Files use Laravel's private `local` disk; content nodes store only `lessonAssetId`, never a browser-supplied path.
+`LessonAsset` records belong to one Lesson and have type `image` or `document`. Images accept JPEG, PNG, or WebP up to 10 MB and require alt text unless the content node is explicitly decorative. Documents accept PDF up to 20 MB. Files use Laravel's private `local` disk; content nodes store only `lessonAssetId`, never a browser-supplied path.
 
 Admin and Tutor upload/read routes reuse the Lesson policy. Tutor access remains limited to active assigned courses. Student asset routes repeat the same enrollment, active hierarchy, and competency-lock checks as the Lesson player. Parent access is denied. Responses disable caching and MIME sniffing and apply a sandbox content security policy.
 
-An asset referenced by `content_document` cannot be deleted. Removing a node does not automatically delete its file; this conservative policy avoids accidental data loss. A reviewed orphan-cleanup job can be added later.
+An asset referenced by `content_document` cannot be deleted. Removing a node does not immediately delete its file, so Undo and a subsequent save remain safe. The hourly `lesson-authoring:cleanup` command removes an unreferenced asset only after both the asset and its lesson have been unchanged for the configured 24-hour grace period. Deleting a lesson removes its private rich assets and managed directories consistently.
+
+## Authoring draft lifecycle
+
+The Create Lesson page begins without a database row. After the author selects a module, `LessonDraftController` creates one private Lesson with `status=inactive`, `is_authoring_draft=true`, its `draft_owner_id`, and a 24-hour expiration. This provides a normal Lesson ID for private image/PDF routes without a save-and-reopen step. Changing the selected module moves that same history-free draft after the target module is authorized; it does not create a chain of drafts.
+
+Admins retain their normal lesson permissions. A Tutor must be assigned to the target course and may access only their own authoring draft. Drafts are omitted from the normal author list and all student hierarchy queries. Student lesson, asset, and preview access is rejected even if an ID is guessed.
+
+Submitting Create validates the complete content document against assets owned by that draft, updates that same Lesson row, applies the selected active/inactive status, and clears all draft metadata atomically. Cancel performs a best-effort immediate discard. Browser closure or network loss is handled by the scheduled cleanup: expired drafts are force-deleted together with their private files. Successful draft uploads extend the expiration.
+
+Preview posts the current unsaved JSON to the author-only preview endpoint. The server validates and adds route-derived asset/trusted embed URLs without saving, then the UI renders the result through the same `LessonContentRenderer` used by students. Preview has no enrollment, progress, mastery, or assessment side effects.
 
 ## External video and code
 

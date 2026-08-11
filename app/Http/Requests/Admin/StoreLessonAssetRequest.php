@@ -30,11 +30,14 @@ class StoreLessonAssetRequest extends FormRequest
                 default => ['required', 'file'],
             },
             'alt_text' => [
-                Rule::requiredIf($type === LessonAssetType::Image),
+                Rule::requiredIf($type === LessonAssetType::Image && ! $this->boolean('decorative')),
                 'nullable',
                 'string',
                 'max:500',
             ],
+            'decorative' => $type === LessonAssetType::Image
+                ? ['sometimes', 'boolean']
+                : ['prohibited'],
             'caption' => ['nullable', 'string', 'max:2000'],
             'file_path' => ['prohibited'],
             'lesson_id' => ['prohibited'],

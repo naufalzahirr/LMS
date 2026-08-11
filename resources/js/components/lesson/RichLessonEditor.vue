@@ -27,6 +27,12 @@ import StarterKit from '@tiptap/starter-kit';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import { common, createLowlight } from 'lowlight';
 import { computed, ref, watch } from 'vue';
+import LessonImageDialog from '@/components/lesson/dialogs/LessonImageDialog.vue';
+import type { LessonImageDialogValue } from '@/components/lesson/dialogs/LessonImageDialog.vue';
+import LessonLinkDialog from '@/components/lesson/dialogs/LessonLinkDialog.vue';
+import LessonResourceDialog from '@/components/lesson/dialogs/LessonResourceDialog.vue';
+import type { LessonResourceDialogValue } from '@/components/lesson/dialogs/LessonResourceDialog.vue';
+import LessonVideoDialog from '@/components/lesson/dialogs/LessonVideoDialog.vue';
 import {
     ExternalVideo,
     LessonCallout,
@@ -71,15 +77,44 @@ const calloutTypes: LessonCalloutType[] = [
     'important',
 ];
 const lowlight = createLowlight(common);
-const imageInput = ref<HTMLInputElement | null>(null);
-const fileInput = ref<HTMLInputElement | null>(null);
-const uploading = ref(false);
-const uploadError = ref('');
 const selectedLanguage = ref<LessonCodeLanguage>('plain');
 const selectedCallout = ref<LessonCalloutType>('info');
 const serializedDocument = ref(
     JSON.stringify(canonicalLessonDocument(props.modelValue)),
 );
+const toolbarError = ref('');
+const uploading = ref(false);
+const uploadProgress = ref(0);
+const dialogError = ref('');
+
+const linkDialogOpen = ref(false);
+const linkEditing = ref(false);
+const linkInitialUrl = ref('');
+const linkInitialText = ref('');
+
+const videoDialogOpen = ref(false);
+const videoEditing = ref(false);
+const videoInitialUrl = ref('');
+const videoInitialTitle = ref('');
+const videoInitialCaption = ref('');
+
+const imageDialogOpen = ref(false);
+const imageEditing = ref(false);
+const imageInitialFile = ref<File | null>(null);
+const imageExistingUrl = ref<string | null>(null);
+const imageInitialAltText = ref('');
+const imageInitialCaption = ref('');
+const imageInitialAlignment = ref<'left' | 'center' | 'right'>('center');
+const imageInitialSize = ref<'small' | 'medium' | 'large' | 'full'>('large');
+const imageInitialDecorative = ref(false);
+
+const resourceDialogOpen = ref(false);
+const resourceEditing = ref(false);
+const resourceInitialTitle = ref('');
+const resourceInitialCaption = ref('');
+const resourceOriginalName = ref('');
+const resourceMimeType = ref('');
+const resourceFileSize = ref(0);
 
 const editor = useEditor({
     content: props.modelValue,
@@ -96,11 +131,8 @@ const editor = useEditor({
             openOnClick: false,
             autolink: false,
             protocols: ['http', 'https'],
-            isAllowedUri: (url) => isSafeHttpUrl(url),
-            HTMLAttributes: {
-                target: '_blank',
-                rel: 'noopener noreferrer',
-            },
+            isAllowedUri: isSafeHttpUrl,
+            HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' },
         }),
         TableKit.configure({ table: { resizable: true } }),
         CodeBlockLowlight.configure({
@@ -119,6 +151,8 @@ const editor = useEditor({
             class: 'tiptap min-h-[28rem] px-5 py-5 focus:outline-none md:px-7',
             'aria-label': 'Rich lesson content editor',
         },
+        handlePaste: (_view, event) => openClipboardImage(event),
+        handleDrop: (_view, event) => openDroppedImage(event),
     },
     onUpdate: ({ editor: currentEditor }) => {
         const document = canonicalLessonDocument(
@@ -129,9 +163,7 @@ const editor = useEditor({
     },
 });
 
-const assetControlsDisabled = computed(
-    () => props.assetUploadUrl === null || uploading.value,
-);
+const assetControlsDisabled = computed(() => uploading.value);
 
 watch(
     () => props.modelValue,
@@ -154,61 +186,252 @@ watch(
     { deep: true },
 );
 
-function setLink(): void {
+function openLinkDialog(): void {
     if (!editor.value) {
         return;
     }
 
-    const previous = editor.value.getAttributes('link').href as
-        string | undefined;
-    const href = window.prompt('Paste an HTTP or HTTPS link', previous ?? '');
+    linkEditing.value = editor.value.isActive('link');
 
-    if (href === null) {
-        return;
+    if (linkEditing.value) {
+        editor.value.chain().focus().extendMarkRange('link').run();
     }
 
-    if (href.trim() === '') {
-        editor.value.chain().focus().extendMarkRange('link').unsetLink().run();
-
-        return;
-    }
-
-    if (!isSafeHttpUrl(href)) {
-        uploadError.value = 'Links must begin with http:// or https://.';
-
-        return;
-    }
-
-    uploadError.value = '';
-    editor.value
-        .chain()
-        .focus()
-        .extendMarkRange('link')
-        .setLink({ href })
-        .run();
+    linkInitialUrl.value = String(
+        editor.value.getAttributes('link').href ?? '',
+    );
+    linkInitialText.value = editor.value.state.doc.textBetween(
+        editor.value.state.selection.from,
+        editor.value.state.selection.to,
+        ' ',
+    );
+    linkDialogOpen.value = true;
 }
 
-function insertVideo(): void {
-    const url = window.prompt('YouTube or Vimeo URL');
-
-    if (!url) {
+function saveLink(value: { url: string; text: string }): void {
+    if (!editor.value) {
         return;
     }
 
-    const title = window.prompt('Descriptive video title', 'Lesson video');
+    const { from, to } = editor.value.state.selection;
+    const selectedText = editor.value.state.doc.textBetween(from, to, ' ');
 
-    if (!title?.trim()) {
+    if (from === to || selectedText !== value.text) {
+        editor.value
+            .chain()
+            .focus()
+            .insertContentAt(
+                { from, to },
+                {
+                    type: 'text',
+                    text: value.text,
+                    marks: [{ type: 'link', attrs: { href: value.url } }],
+                },
+            )
+            .run();
+    } else {
+        editor.value.chain().focus().setLink({ href: value.url }).run();
+    }
+
+    linkDialogOpen.value = false;
+}
+
+function removeLink(): void {
+    editor.value?.chain().focus().extendMarkRange('link').unsetLink().run();
+    linkDialogOpen.value = false;
+}
+
+function openVideoDialog(): void {
+    const attrs = editor.value?.getAttributes('externalVideo') ?? {};
+    videoEditing.value = editor.value?.isActive('externalVideo') ?? false;
+    videoInitialUrl.value = String(attrs.url ?? '');
+    videoInitialTitle.value = String(attrs.title ?? 'Lesson video');
+    videoInitialCaption.value = String(attrs.caption ?? '');
+    videoDialogOpen.value = true;
+}
+
+function saveVideo(value: {
+    url: string;
+    title: string;
+    caption: string | null;
+}): void {
+    const attrs = { ...value, provider: null, videoId: null, embedUrl: null };
+
+    if (videoEditing.value) {
+        editor.value
+            ?.chain()
+            .focus()
+            .updateAttributes('externalVideo', attrs)
+            .run();
+    } else {
+        editor.value
+            ?.chain()
+            .focus()
+            .insertContent({ type: 'externalVideo', attrs })
+            .run();
+    }
+
+    videoDialogOpen.value = false;
+}
+
+function openImageDialog(file: File | null = null): void {
+    toolbarError.value = '';
+
+    if (!props.assetUploadUrl) {
+        toolbarError.value =
+            'Select a module to prepare a private lesson draft before uploading.';
+
         return;
     }
 
-    editor.value
-        ?.chain()
-        .focus()
-        .insertContent({
-            type: 'externalVideo',
-            attrs: { url, title: title.trim(), caption: null },
-        })
-        .run();
+    const attrs = editor.value?.getAttributes('lessonImage') ?? {};
+    imageEditing.value = editor.value?.isActive('lessonImage') ?? false;
+    imageInitialFile.value = file;
+    imageExistingUrl.value = typeof attrs.url === 'string' ? attrs.url : null;
+    imageInitialAltText.value = String(attrs.altText ?? '');
+    imageInitialCaption.value = String(attrs.caption ?? '');
+    imageInitialAlignment.value = isImageAlignment(attrs.alignment)
+        ? attrs.alignment
+        : 'center';
+    imageInitialSize.value = isImageSize(attrs.size) ? attrs.size : 'large';
+    imageInitialDecorative.value = attrs.decorative === true;
+    dialogError.value = '';
+    uploadProgress.value = 0;
+    imageDialogOpen.value = true;
+}
+
+async function saveImage(value: LessonImageDialogValue): Promise<void> {
+    const existing = editor.value?.getAttributes('lessonImage') ?? {};
+    let asset: UploadedLessonAsset | null = null;
+
+    dialogError.value = '';
+
+    if (value.file) {
+        asset = await uploadAsset('image', value.file, {
+            alt_text: value.altText || null,
+            caption: value.caption,
+            decorative: value.decorative,
+        });
+
+        if (!asset) {
+            return;
+        }
+    } else if (imageEditing.value) {
+        const assetId = Number(existing.lessonAssetId);
+
+        if (
+            !(await updateAssetMetadata(assetId, {
+                alt_text: value.altText || null,
+                caption: value.caption,
+                decorative: value.decorative,
+            }))
+        ) {
+            return;
+        }
+    }
+
+    const attrs = {
+        lessonAssetId: asset?.id ?? existing.lessonAssetId,
+        altText: value.altText,
+        caption: value.caption,
+        alignment: value.alignment,
+        size: value.size,
+        decorative: value.decorative,
+        url: asset?.url ?? existing.url,
+        originalName: asset?.original_name ?? existing.originalName,
+        mimeType: asset?.mime_type ?? existing.mimeType,
+        fileSize: asset?.file_size ?? existing.fileSize,
+    };
+
+    if (imageEditing.value) {
+        editor.value
+            ?.chain()
+            .focus()
+            .updateAttributes('lessonImage', attrs)
+            .run();
+    } else {
+        editor.value
+            ?.chain()
+            .focus()
+            .insertContent({ type: 'lessonImage', attrs })
+            .run();
+    }
+
+    imageDialogOpen.value = false;
+}
+
+function openResourceDialog(): void {
+    toolbarError.value = '';
+
+    if (!props.assetUploadUrl) {
+        toolbarError.value =
+            'Select a module to prepare a private lesson draft before uploading.';
+
+        return;
+    }
+
+    const attrs = editor.value?.getAttributes('lessonFile') ?? {};
+    resourceEditing.value = editor.value?.isActive('lessonFile') ?? false;
+    resourceInitialTitle.value = String(attrs.title ?? '');
+    resourceInitialCaption.value = String(attrs.caption ?? '');
+    resourceOriginalName.value = String(attrs.originalName ?? '');
+    resourceMimeType.value = String(attrs.mimeType ?? 'application/pdf');
+    resourceFileSize.value = Number(attrs.fileSize ?? 0);
+    dialogError.value = '';
+    uploadProgress.value = 0;
+    resourceDialogOpen.value = true;
+}
+
+async function saveResource(value: LessonResourceDialogValue): Promise<void> {
+    const existing = editor.value?.getAttributes('lessonFile') ?? {};
+    let asset: UploadedLessonAsset | null = null;
+
+    dialogError.value = '';
+
+    if (value.file) {
+        asset = await uploadAsset('document', value.file, {
+            caption: value.caption,
+        });
+
+        if (!asset) {
+            return;
+        }
+    } else if (resourceEditing.value) {
+        if (
+            !(await updateAssetMetadata(Number(existing.lessonAssetId), {
+                caption: value.caption,
+            }))
+        ) {
+            return;
+        }
+    }
+
+    const attrs = {
+        lessonAssetId: asset?.id ?? existing.lessonAssetId,
+        title: value.title,
+        caption: value.caption,
+        url: asset?.url ?? existing.url,
+        downloadUrl: asset?.download_url ?? existing.downloadUrl,
+        originalName: asset?.original_name ?? existing.originalName,
+        mimeType: asset?.mime_type ?? existing.mimeType,
+        fileSize: asset?.file_size ?? existing.fileSize,
+    };
+
+    if (resourceEditing.value) {
+        editor.value
+            ?.chain()
+            .focus()
+            .updateAttributes('lessonFile', attrs)
+            .run();
+    } else {
+        editor.value
+            ?.chain()
+            .focus()
+            .insertContent({ type: 'lessonFile', attrs })
+            .run();
+    }
+
+    resourceDialogOpen.value = false;
 }
 
 function insertCode(): void {
@@ -233,273 +456,146 @@ function insertCallout(): void {
         .run();
 }
 
-function chooseAsset(kind: 'image' | 'document'): void {
-    uploadError.value = '';
-
-    if (props.assetUploadUrl === null) {
-        uploadError.value =
-            'Save the lesson once before inserting private images or PDFs.';
-
-        return;
-    }
-
-    (kind === 'image' ? imageInput.value : fileInput.value)?.click();
-}
-
-async function chooseOrEditAsset(kind: 'image' | 'document'): Promise<void> {
-    const nodeName = kind === 'image' ? 'lessonImage' : 'lessonFile';
-
-    if (!editor.value?.isActive(nodeName)) {
-        chooseAsset(kind);
-
-        return;
-    }
-
-    const attributes = editor.value.getAttributes(nodeName) as Record<
-        string,
-        unknown
-    >;
-    const assetId = Number(attributes.lessonAssetId);
-
-    if (!Number.isInteger(assetId) || assetId < 1) {
-        uploadError.value = 'This lesson asset cannot be edited.';
-
-        return;
-    }
-
-    if (kind === 'image') {
-        const altText = window.prompt(
-            'Describe this image for learners',
-            String(attributes.altText ?? ''),
-        );
-
-        if (!altText?.trim()) {
-            uploadError.value = 'Image alt text is required.';
-
-            return;
-        }
-
-        const caption = window.prompt(
-            'Optional image caption',
-            String(attributes.caption ?? ''),
-        );
-
-        if (caption === null) {
-            return;
-        }
-
-        if (
-            !(await updateAssetMetadata(assetId, {
-                alt_text: altText.trim(),
-                caption: caption.trim() || null,
-            }))
-        ) {
-            return;
-        }
-
-        editor.value
-            .chain()
-            .focus()
-            .updateAttributes('lessonImage', {
-                altText: altText.trim(),
-                caption: caption.trim() || null,
-            })
-            .run();
-
-        return;
-    }
-
-    const title = window.prompt(
-        'Resource title',
-        String(attributes.title ?? ''),
+function openClipboardImage(event: ClipboardEvent): boolean {
+    const file = Array.from(event.clipboardData?.files ?? []).find((item) =>
+        item.type.startsWith('image/'),
     );
 
-    if (!title?.trim()) {
-        return;
+    if (!file) {
+        return false;
     }
 
-    const caption = window.prompt(
-        'Optional resource description',
-        String(attributes.caption ?? ''),
+    event.preventDefault();
+    openImageDialog(file);
+
+    return true;
+}
+
+function openDroppedImage(event: DragEvent): boolean {
+    const file = Array.from(event.dataTransfer?.files ?? []).find((item) =>
+        item.type.startsWith('image/'),
     );
 
-    if (caption === null) {
-        return;
-    }
-
-    if (
-        !(await updateAssetMetadata(assetId, {
-            caption: caption.trim() || null,
-        }))
-    ) {
-        return;
-    }
-
-    editor.value
-        .chain()
-        .focus()
-        .updateAttributes('lessonFile', {
-            title: title.trim(),
-            caption: caption.trim() || null,
-        })
-        .run();
-}
-
-async function uploadImage(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-
     if (!file) {
-        return;
+        return false;
     }
 
-    const altText = window.prompt('Describe this image for learners');
+    event.preventDefault();
+    const position = editor.value?.view.posAtCoords({
+        left: event.clientX,
+        top: event.clientY,
+    });
 
-    if (!altText?.trim()) {
-        uploadError.value = 'Image alt text is required.';
-
-        return;
+    if (position) {
+        editor.value?.commands.setTextSelection(position.pos);
     }
 
-    const caption = window.prompt('Optional image caption', '') ?? '';
-    const asset = await uploadAsset('image', file, altText.trim(), caption);
+    openImageDialog(file);
 
-    if (!asset) {
-        return;
-    }
-
-    editor.value
-        ?.chain()
-        .focus()
-        .insertContent({
-            type: 'lessonImage',
-            attrs: {
-                lessonAssetId: asset.id,
-                altText: asset.alt_text,
-                caption: asset.caption,
-                alignment: 'center',
-                size: 'large',
-                decorative: false,
-                url: asset.url,
-                originalName: asset.original_name,
-                mimeType: asset.mime_type,
-                fileSize: asset.file_size,
-            },
-        })
-        .run();
+    return true;
 }
 
-async function uploadDocument(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-
-    if (!file) {
-        return;
-    }
-
-    const title = window.prompt('Resource title', file.name);
-
-    if (!title?.trim()) {
-        return;
-    }
-
-    const caption = window.prompt('Optional resource description', '') ?? '';
-    const asset = await uploadAsset('document', file, null, caption);
-
-    if (!asset) {
-        return;
-    }
-
-    editor.value
-        ?.chain()
-        .focus()
-        .insertContent({
-            type: 'lessonFile',
-            attrs: {
-                lessonAssetId: asset.id,
-                title: title.trim(),
-                caption: asset.caption,
-                url: asset.url,
-                downloadUrl: asset.download_url,
-                originalName: asset.original_name,
-                mimeType: asset.mime_type,
-                fileSize: asset.file_size,
-            },
-        })
-        .run();
-}
-
-async function uploadAsset(
+function uploadAsset(
     type: 'image' | 'document',
     file: File,
-    altText: string | null,
-    caption: string,
+    metadata: {
+        alt_text?: string | null;
+        caption: string | null;
+        decorative?: boolean;
+    },
 ): Promise<UploadedLessonAsset | null> {
     if (!props.assetUploadUrl) {
-        return null;
+        return Promise.resolve(null);
     }
 
     uploading.value = true;
-    uploadError.value = '';
-    const data = new FormData();
-    data.append('asset_type', type);
-    data.append('file', file);
+    uploadProgress.value = 0;
+    dialogError.value = '';
 
-    if (altText !== null) {
-        data.append('alt_text', altText);
-    }
+    return new Promise((resolve) => {
+        const request = new XMLHttpRequest();
+        const data = new FormData();
+        data.append('asset_type', type);
+        data.append('file', file);
 
-    if (caption.trim()) {
-        data.append('caption', caption.trim());
-    }
-
-    try {
-        const response = await fetch(props.assetUploadUrl, {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-CSRF-TOKEN': csrfToken(),
-            },
-            body: data,
-            credentials: 'same-origin',
-        });
-        const payload = (await response.json()) as {
-            asset?: UploadedLessonAsset;
-            message?: string;
-            errors?: Record<string, string[]>;
-        };
-
-        if (!response.ok || !payload.asset) {
-            uploadError.value =
-                Object.values(payload.errors ?? {})[0]?.[0] ??
-                payload.message ??
-                'The asset could not be uploaded.';
-
-            return null;
+        if (metadata.alt_text) {
+            data.append('alt_text', metadata.alt_text);
         }
 
-        return payload.asset;
-    } catch {
-        uploadError.value = 'The asset upload failed. Please try again.';
+        if (metadata.caption) {
+            data.append('caption', metadata.caption);
+        }
 
-        return null;
-    } finally {
-        uploading.value = false;
-    }
+        if (metadata.decorative !== undefined) {
+            data.append('decorative', metadata.decorative ? '1' : '0');
+        }
+
+        request.open('POST', props.assetUploadUrl!);
+        request.responseType = 'json';
+        request.setRequestHeader('Accept', 'application/json');
+        request.setRequestHeader('X-CSRF-TOKEN', csrfToken());
+        request.withCredentials = true;
+        request.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+                uploadProgress.value = Math.min(
+                    99,
+                    Math.round((event.loaded / event.total) * 100),
+                );
+            }
+        };
+        request.onload = () => {
+            const payload = request.response as {
+                asset?: UploadedLessonAsset;
+                message?: string;
+                errors?: Record<string, string[]>;
+            } | null;
+
+            if (
+                request.status < 200 ||
+                request.status >= 300 ||
+                !payload?.asset
+            ) {
+                dialogError.value = responseError(
+                    payload,
+                    'The asset could not be uploaded.',
+                );
+                finishUpload();
+                resolve(null);
+
+                return;
+            }
+
+            uploadProgress.value = 100;
+            finishUpload();
+            resolve(payload.asset);
+        };
+        request.onerror = () => {
+            dialogError.value =
+                'The upload failed. Check your connection and try again.';
+            finishUpload();
+            resolve(null);
+        };
+        request.send(data);
+    });
 }
 
 async function updateAssetMetadata(
     assetId: number,
-    metadata: { alt_text?: string; caption: string | null },
+    metadata: {
+        alt_text?: string | null;
+        caption: string | null;
+        decorative?: boolean;
+    },
 ): Promise<boolean> {
-    if (!props.assetUploadUrl) {
+    if (!props.assetUploadUrl || !Number.isInteger(assetId) || assetId < 1) {
+        dialogError.value = 'This lesson asset can no longer be edited.';
+
         return false;
     }
 
     uploading.value = true;
-    uploadError.value = '';
+    uploadProgress.value = 100;
+    dialogError.value = '';
 
     try {
         const response = await fetch(
@@ -521,28 +617,49 @@ async function updateAssetMetadata(
         };
 
         if (!response.ok) {
-            uploadError.value =
-                Object.values(payload.errors ?? {})[0]?.[0] ??
-                payload.message ??
-                'The asset metadata could not be updated.';
+            dialogError.value = responseError(
+                payload,
+                'The asset metadata could not be updated.',
+            );
 
             return false;
         }
 
         return true;
     } catch {
-        uploadError.value =
-            'The asset metadata update failed. Please try again.';
+        dialogError.value =
+            'The update failed. Check your connection and try again.';
 
         return false;
     } finally {
-        uploading.value = false;
+        finishUpload();
     }
+}
+
+function finishUpload(): void {
+    uploading.value = false;
+}
+
+function responseError(
+    payload: { message?: string; errors?: Record<string, string[]> } | null,
+    fallback: string,
+): string {
+    return (
+        Object.values(payload?.errors ?? {})[0]?.[0] ??
+        payload?.message ??
+        fallback
+    );
 }
 
 function isSafeHttpUrl(value: string): boolean {
     try {
-        return ['http:', 'https:'].includes(new URL(value).protocol);
+        const parsed = new URL(value);
+
+        return (
+            ['http:', 'https:'].includes(parsed.protocol) &&
+            !parsed.username &&
+            !parsed.password
+        );
     } catch {
         return false;
     }
@@ -554,6 +671,18 @@ function csrfToken(): string {
             .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
             ?.getAttribute('content') ?? ''
     );
+}
+
+function isImageAlignment(
+    value: unknown,
+): value is 'left' | 'center' | 'right' {
+    return ['left', 'center', 'right'].includes(String(value));
+}
+
+function isImageSize(
+    value: unknown,
+): value is 'small' | 'medium' | 'large' | 'full' {
+    return ['small', 'medium', 'large', 'full'].includes(String(value));
 }
 </script>
 
@@ -623,7 +752,7 @@ function csrfToken(): string {
                 class="editor-button"
                 :class="{ 'editor-button-active': editor?.isActive('link') }"
                 aria-label="Add or edit link"
-                @click="setLink"
+                @click="openLinkDialog"
             >
                 <Link2 />
             </button>
@@ -691,12 +820,7 @@ function csrfToken(): string {
                     'editor-button-active': editor?.isActive('lessonImage'),
                 }"
                 :disabled="assetControlsDisabled"
-                :aria-label="
-                    editor?.isActive('lessonImage')
-                        ? 'Edit selected image metadata'
-                        : 'Insert image'
-                "
-                @click="chooseOrEditAsset('image')"
+                @click="openImageDialog()"
             >
                 <Image />
                 {{ editor?.isActive('lessonImage') ? 'Edit image' : 'Image' }}
@@ -704,9 +828,13 @@ function csrfToken(): string {
             <button
                 type="button"
                 class="editor-button-with-label"
-                @click="insertVideo"
+                :class="{
+                    'editor-button-active': editor?.isActive('externalVideo'),
+                }"
+                @click="openVideoDialog"
             >
-                <Video /> Video
+                <Video />
+                {{ editor?.isActive('externalVideo') ? 'Edit video' : 'Video' }}
             </button>
             <button
                 type="button"
@@ -715,12 +843,7 @@ function csrfToken(): string {
                     'editor-button-active': editor?.isActive('lessonFile'),
                 }"
                 :disabled="assetControlsDisabled"
-                :aria-label="
-                    editor?.isActive('lessonFile')
-                        ? 'Edit selected PDF metadata'
-                        : 'Insert PDF'
-                "
-                @click="chooseOrEditAsset('document')"
+                @click="openResourceDialog"
             >
                 <Upload />
                 {{ editor?.isActive('lessonFile') ? 'Edit PDF' : 'PDF' }}
@@ -785,38 +908,70 @@ function csrfToken(): string {
             v-if="!assetUploadUrl"
             class="border-b bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
         >
-            Save the lesson first to unlock private image and PDF uploads. All
-            other content can be authored now.
+            Select a module to enable private image and PDF uploads. Your draft
+            will be prepared automatically.
         </p>
         <p
-            v-if="uploading"
-            class="border-b bg-muted px-4 py-2 text-xs text-muted-foreground"
-        >
-            Uploading private lesson asset…
-        </p>
-        <p
-            v-if="uploadError"
+            v-if="toolbarError"
             role="alert"
             class="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive"
         >
-            {{ uploadError }}
+            {{ toolbarError }}
         </p>
 
         <EditorContent :editor="editor" class="rich-lesson-editor" />
+        <p class="border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
+            Tip: paste an image from the clipboard or drag a JPG, PNG, or WebP
+            image into the editor.
+        </p>
 
-        <input
-            ref="imageInput"
-            class="hidden"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-            @change="uploadImage"
+        <LessonLinkDialog
+            :open="linkDialogOpen"
+            :editing="linkEditing"
+            :initial-url="linkInitialUrl"
+            :initial-text="linkInitialText"
+            @update:open="linkDialogOpen = $event"
+            @save="saveLink"
+            @remove="removeLink"
         />
-        <input
-            ref="fileInput"
-            class="hidden"
-            type="file"
-            accept="application/pdf,.pdf"
-            @change="uploadDocument"
+        <LessonVideoDialog
+            :open="videoDialogOpen"
+            :editing="videoEditing"
+            :initial-url="videoInitialUrl"
+            :initial-title="videoInitialTitle"
+            :initial-caption="videoInitialCaption"
+            @update:open="videoDialogOpen = $event"
+            @save="saveVideo"
+        />
+        <LessonImageDialog
+            :open="imageDialogOpen"
+            :editing="imageEditing"
+            :initial-file="imageInitialFile"
+            :existing-url="imageExistingUrl"
+            :initial-alt-text="imageInitialAltText"
+            :initial-caption="imageInitialCaption"
+            :initial-alignment="imageInitialAlignment"
+            :initial-size="imageInitialSize"
+            :initial-decorative="imageInitialDecorative"
+            :busy="uploading"
+            :progress="uploadProgress"
+            :server-error="dialogError"
+            @update:open="imageDialogOpen = $event"
+            @save="saveImage"
+        />
+        <LessonResourceDialog
+            :open="resourceDialogOpen"
+            :editing="resourceEditing"
+            :initial-title="resourceInitialTitle"
+            :initial-caption="resourceInitialCaption"
+            :original-name="resourceOriginalName"
+            :mime-type="resourceMimeType"
+            :file-size="resourceFileSize"
+            :busy="uploading"
+            :progress="uploadProgress"
+            :server-error="dialogError"
+            @update:open="resourceDialogOpen = $event"
+            @save="saveResource"
         />
     </div>
 </template>

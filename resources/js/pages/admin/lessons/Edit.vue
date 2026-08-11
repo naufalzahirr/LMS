@@ -38,6 +38,8 @@ defineProps<{
     modules: ModuleOption[];
     statuses: AcademicStatusOption[];
     assetUploadUrl: string;
+    previewUrl: string;
+    draftEnsureUrl: null;
 }>();
 
 defineOptions({
@@ -76,6 +78,8 @@ defineOptions({
                         :initial="lesson"
                         :content-document="lesson.content_document"
                         :asset-upload-url="assetUploadUrl"
+                        :preview-url="previewUrl"
+                        :draft-ensure-url="draftEnsureUrl"
                     />
                     <div class="flex justify-end gap-3">
                         <Button variant="outline" as-child

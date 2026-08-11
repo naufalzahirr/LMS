@@ -54,7 +54,7 @@ final class LessonAssetService
     {
         $asset->update([
             'alt_text' => $asset->asset_type === LessonAssetType::Image
-                ? ($metadata['alt_text'] ?? $asset->alt_text)
+                ? (array_key_exists('alt_text', $metadata) ? $metadata['alt_text'] : $asset->alt_text)
                 : null,
             'caption' => array_key_exists('caption', $metadata) ? $metadata['caption'] : $asset->caption,
         ]);

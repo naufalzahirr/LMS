@@ -47,6 +47,7 @@ class StudentLearningAccessService
         return Lesson::query()
             ->whereKey($lesson->id)
             ->where('status', AcademicStatus::Active->value)
+            ->where('is_authoring_draft', false)
             ->whereHas('module', function ($query) use ($learningClass): void {
                 $query->where('status', AcademicStatus::Active->value)
                     ->whereHas('competency', function ($query) use ($learningClass): void {

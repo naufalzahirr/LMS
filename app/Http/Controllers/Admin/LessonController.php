@@ -46,7 +46,9 @@ class LessonController extends Controller
         $moduleId = $request->integer('module_id');
         $lessonType = LessonType::tryFrom($request->string('lesson_type')->toString());
         $status = AcademicStatus::tryFrom($request->string('status')->toString());
-        $query = Lesson::query()->with('module.competency.course.program:id,name');
+        $query = Lesson::query()
+            ->where('is_authoring_draft', false)
+            ->with('module.competency.course.program:id,name');
         $user = $request->user();
         abort_unless($user instanceof User, 401);
         $manageableCourseIds = $this->tutorCourseAccess->manageableCourseIds($user);
@@ -148,12 +150,18 @@ class LessonController extends Controller
             'statuses' => AcademicStatus::options(),
             'contentDocument' => $this->lessonContent->emptyDocument(),
             'assetUploadUrl' => null,
+            'previewUrl' => null,
+            'draftEnsureUrl' => route('admin.lesson-drafts.store'),
         ]);
     }
 
     public function store(StoreLessonRequest $request): RedirectResponse
     {
-        $lesson = $this->lessonService->create($request->payload(), $request->uploadedFile());
+        $lesson = $this->lessonService->create(
+            $request->payload(),
+            $request->uploadedFile(),
+            $request->draft(),
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Lesson created.')]);
 
@@ -229,6 +237,8 @@ class LessonController extends Controller
             ...$this->hierarchyOptions($user, true),
             'statuses' => AcademicStatus::options(),
             'assetUploadUrl' => route('admin.lesson-assets.store', $lesson),
+            'previewUrl' => route('admin.lessons.preview', $lesson),
+            'draftEnsureUrl' => null,
         ]);
     }
 

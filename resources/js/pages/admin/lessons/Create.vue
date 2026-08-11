@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Form, Head, Link } from '@inertiajs/vue3';
+import { Form, Head, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import LessonController from '@/actions/App/Http/Controllers/Admin/LessonController';
 import LessonFormFields from '@/components/admin/LessonFormFields.vue';
 import Heading from '@/components/Heading.vue';
@@ -23,7 +24,42 @@ defineProps<{
     statuses: AcademicStatusOption[];
     contentDocument: LessonDocument;
     assetUploadUrl: string | null;
+    previewUrl: string | null;
+    draftEnsureUrl: string;
 }>();
+
+const draftDiscardUrl = ref<string | null>(null);
+const cancelling = ref(false);
+
+function rememberDraft(draft: { id: number; discardUrl: string }): void {
+    draftDiscardUrl.value = draft.discardUrl;
+}
+
+async function cancelAuthoring(): Promise<void> {
+    cancelling.value = true;
+
+    if (draftDiscardUrl.value) {
+        try {
+            await fetch(draftDiscardUrl.value, {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN':
+                        globalThis.document
+                            .querySelector<HTMLMetaElement>(
+                                'meta[name="csrf-token"]',
+                            )
+                            ?.getAttribute('content') ?? '',
+                },
+                credentials: 'same-origin',
+            });
+        } catch {
+            // The scheduled cleanup remains the fallback for an unreachable server.
+        }
+    }
+
+    router.visit(index().url);
+}
 
 defineOptions({
     layout: {
@@ -59,10 +95,19 @@ defineOptions({
                         :errors="errors"
                         :content-document="contentDocument"
                         :asset-upload-url="assetUploadUrl"
+                        :preview-url="previewUrl"
+                        :draft-ensure-url="draftEnsureUrl"
+                        @draft-ready="rememberDraft"
                     />
                     <div class="flex justify-end gap-3">
-                        <Button variant="outline" as-child
-                            ><Link :href="index()">Cancel</Link></Button
+                        <Button
+                            type="button"
+                            variant="outline"
+                            :disabled="cancelling || processing"
+                            @click="cancelAuthoring"
+                        >
+                            {{ cancelling ? 'Closing…' : 'Cancel' }}
+                        </Button>
                         >
                         <Button type="submit" :disabled="processing"
                             >Create lesson</Button

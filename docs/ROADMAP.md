@@ -17,6 +17,5 @@ These are candidate ideas for V1.1 or V2. They are not commitments and none are 
 - Localization and broader accessibility testing with assistive-technology users
 - Disaster-recovery automation across regions
 - Optional non-mastery inline practice nodes in rich lessons (`fill_in_blank`, `multiple_choice`, `multiple_select`, and `true_false`), kept separate from Assessment and mastery scoring
-- Reviewed cleanup tooling for private LessonAssets that are no longer referenced by a lesson document
 
 Before planning or implementation, each candidate requires product approval, threat modeling, authorization tests, data-migration planning, operational documentation, and MySQL integration coverage.

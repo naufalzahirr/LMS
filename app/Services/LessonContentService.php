@@ -87,8 +87,29 @@ final class LessonContentService
     public function forRendering(Lesson $lesson, Closure $assetUrls): array
     {
         $document = $lesson->content_document ?? $this->emptyDocument();
-        $normalized = $this->normalize($lesson, $document);
 
+        return $this->present($lesson, $this->normalize($lesson, $document), $assetUrls);
+    }
+
+    /**
+     * Build a read-only author preview without persisting the submitted document.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  Closure(LessonAsset): array{url: string, downloadUrl: string}  $assetUrls
+     * @return array<string, mixed>
+     */
+    public function forPreview(Lesson $lesson, array $document, Closure $assetUrls): array
+    {
+        return $this->present($lesson, $this->normalize($lesson, $document), $assetUrls);
+    }
+
+    /**
+     * @param  array<string, mixed>  $normalized
+     * @param  Closure(LessonAsset): array{url: string, downloadUrl: string}  $assetUrls
+     * @return array<string, mixed>
+     */
+    private function present(Lesson $lesson, array $normalized, Closure $assetUrls): array
+    {
         return $this->mapNodes($normalized, function (array $node) use ($lesson, $assetUrls): array {
             $attrs = is_array($node['attrs'] ?? null) ? $node['attrs'] : [];
 

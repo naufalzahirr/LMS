@@ -15,12 +15,15 @@ class LearningProgressQueryService
     public function loadActiveHierarchy(LearningClass $learningClass): LearningClass
     {
         $active = fn ($query) => $query->where('status', AcademicStatus::Active->value);
+        $activeLessons = fn ($query) => $query
+            ->where('status', AcademicStatus::Active->value)
+            ->where('is_authoring_draft', false);
 
         return $learningClass->load([
             'course.program',
             'course.competencies' => $active,
             'course.competencies.modules' => $active,
-            'course.competencies.modules.lessons' => $active,
+            'course.competencies.modules.lessons' => $activeLessons,
         ]);
     }
 
@@ -106,6 +109,7 @@ class LearningProgressQueryService
             ->join('programs', 'programs.id', '=', 'courses.program_id')
             ->whereIn('competencies.course_id', $courseIds)
             ->where('lessons.status', AcademicStatus::Active->value)
+            ->where('lessons.is_authoring_draft', false)
             ->where('modules.status', AcademicStatus::Active->value)
             ->where('competencies.status', AcademicStatus::Active->value)
             ->where('courses.status', AcademicStatus::Active->value)
