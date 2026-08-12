@@ -59,9 +59,7 @@ defineOptions({
                         <BookOpenCheck class="size-7 text-muted-foreground" />
                         <div>
                             <p class="text-2xl font-semibold">
-                                {{
-                                    props.dashboard.overview.active_enrollments
-                                }}
+                                {{ props.dashboard.overview.active_students }}
                             </p>
                             <p class="text-sm text-muted-foreground">
                                 Active students

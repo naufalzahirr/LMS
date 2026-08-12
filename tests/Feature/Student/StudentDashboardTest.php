@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Student;
 
+use App\Enums\AcademicStatus;
 use App\Enums\EnrollmentStatus;
 use App\Enums\LearningClassStatus;
 use App\Enums\LessonProgressStatus;
@@ -15,6 +16,7 @@ use App\Models\LessonProgress;
 use App\Models\MasteryRule;
 use App\Models\Module;
 use App\Models\RemedialAssignment;
+use App\Models\StudentCompetencyProgress;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Database\Seeders\RolePermissionSeeder;
@@ -171,6 +173,58 @@ class StudentDashboardTest extends TestCase
                 ->component('student/Dashboard')
                 ->has('dashboard.continue_learning', 1)
                 ->where('dashboard.continue_learning.0.learning_class_id', $activeContext['learningClass']->id));
+    }
+
+    public function test_competency_total_reflects_active_competencies_even_with_no_progress_rows(): void
+    {
+        $student = $this->userWithRole('Student');
+        $course = Course::factory()->create();
+        $competencyA = Competency::factory()->for($course)->create(['sort_order' => 1]);
+        Competency::factory()->for($course)->create(['sort_order' => 2]);
+        Competency::factory()->for($course)->create(['sort_order' => 3]);
+        Competency::factory()->for($course)->create(['sort_order' => 4, 'status' => AcademicStatus::Inactive]);
+        $learningClass = LearningClass::factory()->for($course)->create(['status' => LearningClassStatus::Active]);
+        Enrollment::factory()->for($learningClass)->create([
+            'student_id' => $student->id,
+            'status' => EnrollmentStatus::Active,
+        ]);
+
+        $this->actingAs($student)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/Dashboard')
+                ->where('dashboard.progress.competencies_total', 3)
+                ->where('dashboard.progress.competencies_mastered', 0));
+
+        StudentCompetencyProgress::factory()->mastered()->create([
+            'enrollment_id' => Enrollment::query()->where('student_id', $student->id)->firstOrFail()->id,
+            'competency_id' => $competencyA->id,
+        ]);
+
+        $this->actingAs($student)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/Dashboard')
+                ->where('dashboard.progress.competencies_total', 3)
+                ->where('dashboard.progress.competencies_mastered', 1));
+    }
+
+    public function test_competency_total_does_not_double_count_a_course_shared_by_two_active_enrollments(): void
+    {
+        $student = $this->userWithRole('Student');
+        $course = Course::factory()->create();
+        Competency::factory()->for($course)->create(['sort_order' => 1]);
+        Competency::factory()->for($course)->create(['sort_order' => 2]);
+        $firstClass = LearningClass::factory()->for($course)->create(['status' => LearningClassStatus::Active]);
+        $secondClass = LearningClass::factory()->for($course)->create(['status' => LearningClassStatus::Active]);
+        Enrollment::factory()->for($firstClass)->create(['student_id' => $student->id, 'status' => EnrollmentStatus::Active]);
+        Enrollment::factory()->for($secondClass)->create(['student_id' => $student->id, 'status' => EnrollmentStatus::Active]);
+
+        $this->actingAs($student)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/Dashboard')
+                ->where('dashboard.progress.competencies_total', 2));
     }
 
     public function test_admin_and_tutor_never_receive_the_student_dashboard(): void

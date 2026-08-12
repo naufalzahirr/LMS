@@ -92,6 +92,48 @@ class TutorDashboardTest extends TestCase
                 ->where('dashboard.needs_attention.needs_remedial_count', 1));
     }
 
+    public function test_needs_remedial_count_is_distinct_students_not_competency_progress_rows(): void
+    {
+        $tutor = $this->userWithRole('Tutor');
+        $context = $this->classContext();
+        $context['learningClass']->tutors()->attach($tutor);
+
+        StudentCompetencyProgress::factory()->needsRemedial()->create(['enrollment_id' => $context['enrollment']->id]);
+        StudentCompetencyProgress::factory()->needsRemedial()->create(['enrollment_id' => $context['enrollment']->id]);
+        StudentCompetencyProgress::factory()->needsRemedial()->create(['enrollment_id' => $context['enrollment']->id]);
+
+        $this->actingAs($tutor)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('tutor/Dashboard')
+                ->where('dashboard.needs_attention.needs_remedial_count', 1));
+
+        $otherStudent = User::factory()->create();
+        $otherStudent->assignRole('Student');
+        $otherEnrollment = Enrollment::factory()->for($context['learningClass'])->for($otherStudent, 'student')->create([
+            'status' => EnrollmentStatus::Active,
+        ]);
+        StudentCompetencyProgress::factory()->needsRemedial()->create(['enrollment_id' => $otherEnrollment->id]);
+
+        $this->actingAs($tutor)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('tutor/Dashboard')
+                ->where('dashboard.needs_attention.needs_remedial_count', 2));
+
+        // A NeedsRemedial student from a class this tutor is not assigned to must not count.
+        $unassignedContext = $this->classContext();
+        StudentCompetencyProgress::factory()->needsRemedial()->create([
+            'enrollment_id' => $unassignedContext['enrollment']->id,
+        ]);
+
+        $this->actingAs($tutor)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('tutor/Dashboard')
+                ->where('dashboard.needs_attention.needs_remedial_count', 2));
+    }
+
     public function test_grading_queue_is_scoped_to_the_tutors_own_classes_only(): void
     {
         $tutor = $this->userWithRole('Tutor');

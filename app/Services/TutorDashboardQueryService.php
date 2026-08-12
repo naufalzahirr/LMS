@@ -77,10 +77,14 @@ class TutorDashboardQueryService
             ->whereIn('learning_class_id', $activeClassIds)
             ->where('status', EnrollmentStatus::Active->value)
             ->pluck('id');
+        // Distinct students, not competency-progress rows: a single student can have
+        // several NeedsRemedial competencies and must still count once.
         $needsRemedialCount = $enrollmentIds->isEmpty() ? 0 : StudentCompetencyProgress::query()
-            ->whereIn('enrollment_id', $enrollmentIds)
-            ->where('status', StudentCompetencyStatus::NeedsRemedial->value)
-            ->count();
+            ->join('enrollments', 'enrollments.id', '=', 'student_competency_progress.enrollment_id')
+            ->whereIn('student_competency_progress.enrollment_id', $enrollmentIds)
+            ->where('student_competency_progress.status', StudentCompetencyStatus::NeedsRemedial->value)
+            ->distinct('enrollments.student_id')
+            ->count('enrollments.student_id');
 
         return [
             'needs_remedial_count' => $needsRemedialCount,

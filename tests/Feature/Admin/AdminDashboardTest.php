@@ -43,10 +43,50 @@ class AdminDashboardTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('admin/Dashboard')
                 ->where('dashboard.overview.active_classes', 1)
-                ->where('dashboard.overview.active_enrollments', 1)
+                ->where('dashboard.overview.active_students', 1)
                 ->where('dashboard.overview.tutors_with_assignments', 1)
                 ->where('dashboard.overview.active_courses', 1)
                 ->where('dashboard.overview.active_programs', 1));
+    }
+
+    public function test_active_students_counts_distinct_students_not_enrollments(): void
+    {
+        $admin = $this->userWithRole('Admin');
+        $student = User::factory()->create();
+        $student->assignRole('Student');
+
+        $course = Course::factory()->create();
+        $firstClass = LearningClass::factory()->for($course)->create(['status' => LearningClassStatus::Active]);
+        $secondClass = LearningClass::factory()->for($course)->create(['status' => LearningClassStatus::Active]);
+        Enrollment::factory()->for($firstClass)->for($student, 'student')->create(['status' => EnrollmentStatus::Active]);
+        Enrollment::factory()->for($secondClass)->for($student, 'student')->create(['status' => EnrollmentStatus::Active]);
+
+        // An active enrollment in a non-active class must not count as an active learner.
+        $inactiveClass = LearningClass::factory()->for($course)->create(['status' => LearningClassStatus::Inactive]);
+        Enrollment::factory()->for($inactiveClass)->for($student, 'student')->create(['status' => EnrollmentStatus::Active]);
+
+        $this->actingAs($admin)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('admin/Dashboard')
+                ->where('dashboard.overview.active_students', 1)
+                ->where('dashboard.learning_status.students_currently_learning', 1));
+    }
+
+    public function test_students_needing_remedial_counts_distinct_students_not_competency_rows(): void
+    {
+        $admin = $this->userWithRole('Admin');
+        $context = $this->classContext();
+
+        StudentCompetencyProgress::factory()->needsRemedial()->create(['enrollment_id' => $context['enrollment']->id]);
+        StudentCompetencyProgress::factory()->needsRemedial()->create(['enrollment_id' => $context['enrollment']->id]);
+        StudentCompetencyProgress::factory()->needsRemedial()->create(['enrollment_id' => $context['enrollment']->id]);
+
+        $this->actingAs($admin)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('admin/Dashboard')
+                ->where('dashboard.learning_status.students_needing_remedial', 1));
     }
 
     public function test_tutors_with_assignments_excludes_tutors_only_assigned_to_inactive_classes(): void

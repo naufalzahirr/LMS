@@ -10,7 +10,6 @@ use App\Enums\StudentCompetencyStatus;
 use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\RemedialAssignment;
-use App\Models\StudentCompetencyProgress;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -29,6 +28,7 @@ class StudentDashboardQueryService
 
     public function __construct(
         private readonly LearningProgressQueryService $learningProgress,
+        private readonly MasteryProgressQueryService $masteryProgress,
         private readonly StudentAssessmentPayloadService $assessmentPayloads,
         private readonly CompetencyAccessService $competencyAccess,
     ) {}
@@ -57,7 +57,6 @@ class StudentDashboardQueryService
         }
 
         $summaries = $this->learningProgress->summariesForEnrollments($activeEnrollments);
-        $activeEnrollmentIds = $activeEnrollments->modelKeys();
         $assessments = $this->assessmentCards($activeEnrollments);
         $availableAssessments = collect($assessments)
             ->filter(fn (array $card): bool => $card['availability'] === 'Available')
@@ -78,7 +77,7 @@ class StudentDashboardQueryService
                         ])->values()->all(),
                 ],
             ],
-            'progress' => $this->progressSummary($activeEnrollmentIds, $summaries),
+            'progress' => $this->progressSummary($activeEnrollments, $summaries),
             'assessments' => array_slice($assessments, 0, self::MAX_ASSESSMENTS),
         ];
     }
@@ -197,30 +196,37 @@ class StudentDashboardQueryService
     }
 
     /**
-     * @param  array<int, int>  $activeEnrollmentIds
+     * @param  Collection<int, Enrollment>  $activeEnrollments
      * @param  array<int, array{completed_lessons: int, total_lessons: int, percentage: int, continue_lesson_id: int|null}>  $summaries
      * @return array<string, int>
      */
-    private function progressSummary(array $activeEnrollmentIds, array $summaries): array
+    private function progressSummary(Collection $activeEnrollments, array $summaries): array
     {
         $completedLessons = 0;
         $totalLessons = 0;
 
-        foreach ($activeEnrollmentIds as $id) {
+        foreach ($activeEnrollments->modelKeys() as $id) {
             $completedLessons += $summaries[$id]['completed_lessons'];
             $totalLessons += $summaries[$id]['total_lessons'];
         }
 
+        // The denominator is every active competency in the student's active enrolled
+        // courses, not just ones with an existing progress row (a student who hasn't
+        // started a competency yet still has 0 rows for it). competenciesForEnrollments()
+        // already maps that missing-row case to the default "learning" status, and
+        // de-duplicating by competency id keeps a competency shared across two active
+        // enrollments (e.g. the same course) from being counted twice.
+        $competencyCells = collect($this->masteryProgress->competenciesForEnrollments($activeEnrollments))
+            ->flatten(1)
+            ->unique(fn (array $cell): int => $cell['id']);
+
         return [
             'completed_lessons' => $completedLessons,
             'total_lessons' => $totalLessons,
-            'competencies_mastered' => StudentCompetencyProgress::query()
-                ->whereIn('enrollment_id', $activeEnrollmentIds)
+            'competencies_mastered' => $competencyCells
                 ->where('status', StudentCompetencyStatus::Mastered->value)
                 ->count(),
-            'competencies_total' => StudentCompetencyProgress::query()
-                ->whereIn('enrollment_id', $activeEnrollmentIds)
-                ->count(),
+            'competencies_total' => $competencyCells->count(),
         ];
     }
 }

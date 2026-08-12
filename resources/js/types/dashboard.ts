@@ -132,7 +132,7 @@ export type AdminAttentionItem = {
 export type AdminDashboard = {
     overview: {
         active_classes: number;
-        active_enrollments: number;
+        active_students: number;
         tutors_with_assignments: number;
         active_courses: number;
         active_programs: number;

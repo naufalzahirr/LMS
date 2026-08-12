@@ -40,13 +40,26 @@ class AdminDashboardQueryService
     {
         return [
             'active_classes' => LearningClass::query()->where('status', LearningClassStatus::Active->value)->count(),
-            'active_enrollments' => Enrollment::query()->where('status', EnrollmentStatus::Active->value)->count(),
+            'active_students' => $this->distinctActiveStudentCount(),
             'tutors_with_assignments' => User::role('Tutor')
                 ->whereHas('teachingClasses', fn ($query) => $query->where('learning_classes.status', LearningClassStatus::Active->value))
                 ->count(),
             'active_courses' => Course::query()->where('status', AcademicStatus::Active->value)->count(),
             'active_programs' => Program::query()->where('status', AcademicStatus::Active->value)->count(),
         ];
+    }
+
+    /**
+     * Distinct students with an active enrollment in an active Learning Class.
+     * A student enrolled in multiple active classes counts once.
+     */
+    private function distinctActiveStudentCount(): int
+    {
+        return Enrollment::query()
+            ->where('status', EnrollmentStatus::Active->value)
+            ->whereHas('learningClass', fn ($query) => $query->where('status', LearningClassStatus::Active->value))
+            ->distinct('student_id')
+            ->count('student_id');
     }
 
     /** @return array<string, mixed> */
@@ -85,18 +98,15 @@ class AdminDashboardQueryService
     private function learningStatus(): array
     {
         return [
-            'students_currently_learning' => Enrollment::query()
-                ->where('status', EnrollmentStatus::Active->value)
-                ->whereHas('learningClass', fn ($query) => $query->where('status', LearningClassStatus::Active->value))
-                ->distinct('student_id')
-                ->count('student_id'),
+            'students_currently_learning' => $this->distinctActiveStudentCount(),
             'competencies_mastered' => StudentCompetencyProgress::query()
                 ->where('status', StudentCompetencyStatus::Mastered->value)
                 ->count(),
             'students_needing_remedial' => StudentCompetencyProgress::query()
-                ->where('status', StudentCompetencyStatus::NeedsRemedial->value)
-                ->distinct('enrollment_id')
-                ->count('enrollment_id'),
+                ->join('enrollments', 'enrollments.id', '=', 'student_competency_progress.enrollment_id')
+                ->where('student_competency_progress.status', StudentCompetencyStatus::NeedsRemedial->value)
+                ->distinct('enrollments.student_id')
+                ->count('enrollments.student_id'),
         ];
     }
 
