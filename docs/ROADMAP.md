@@ -1,8 +1,10 @@
 # Post-V1 roadmap
 
-## In progress
+## Shipped
 
+- Rich Multimedia Lesson V1: rich lesson authoring and delivery (text, images, files, embedded video, callouts, tables, code blocks) with draft-backed editing independent from published content.
 - Interactive Learning Checkpoints V1: implemented with four formative inline question types, server-side answer evaluation, attempt history, persistent mastery state, and draft-backed authoring independent from formal Assessments.
+- Role-Based Dashboard & Action Center V1: role-specific "what should I do next" dashboards for Admin, Tutor, and Student, built by aggregating existing learning-class, progress, mastery, remedial, and assessment domains (no new business logic or grading formulas). Parent's existing dashboard is unchanged.
 
 ## Candidate future work
 

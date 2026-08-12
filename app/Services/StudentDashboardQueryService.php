@@ -1,0 +1,226 @@
+<?php
+
+namespace App\Services;
+
+use App\Enums\AcademicStatus;
+use App\Enums\EnrollmentStatus;
+use App\Enums\LearningClassStatus;
+use App\Enums\RemedialAssignmentStatus;
+use App\Enums\StudentCompetencyStatus;
+use App\Models\Enrollment;
+use App\Models\Lesson;
+use App\Models\RemedialAssignment;
+use App\Models\StudentCompetencyProgress;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
+
+class StudentDashboardQueryService
+{
+    private const MAX_CONTINUE_LEARNING = 3;
+
+    private const MAX_REMEDIAL_ITEMS = 5;
+
+    private const MAX_AVAILABLE_ASSESSMENT_ITEMS = 3;
+
+    private const MAX_ASSESSMENTS = 5;
+
+    /** @var array<int, string> */
+    private const ACTIONABLE_ASSESSMENT_AVAILABILITY = ['In Progress', 'Available', 'Submitted / Pending Grading'];
+
+    public function __construct(
+        private readonly LearningProgressQueryService $learningProgress,
+        private readonly StudentAssessmentPayloadService $assessmentPayloads,
+        private readonly CompetencyAccessService $competencyAccess,
+    ) {}
+
+    /** @return array<string, mixed> */
+    public function forStudent(User $user): array
+    {
+        $activeEnrollments = $this->activeEnrollments($user);
+
+        if ($activeEnrollments->isEmpty()) {
+            return [
+                'has_any_enrollment_history' => Enrollment::query()->where('student_id', $user->id)->exists(),
+                'continue_learning' => [],
+                'needs_attention' => [
+                    'remedial' => [],
+                    'assessments_available' => ['count' => 0, 'items' => []],
+                ],
+                'progress' => [
+                    'completed_lessons' => 0,
+                    'total_lessons' => 0,
+                    'competencies_mastered' => 0,
+                    'competencies_total' => 0,
+                ],
+                'assessments' => [],
+            ];
+        }
+
+        $summaries = $this->learningProgress->summariesForEnrollments($activeEnrollments);
+        $activeEnrollmentIds = $activeEnrollments->modelKeys();
+        $assessments = $this->assessmentCards($activeEnrollments);
+        $availableAssessments = collect($assessments)
+            ->filter(fn (array $card): bool => $card['availability'] === 'Available')
+            ->values();
+
+        return [
+            'has_any_enrollment_history' => true,
+            'continue_learning' => $this->continueLearningCards($activeEnrollments, $summaries),
+            'needs_attention' => [
+                'remedial' => $this->remedialItems($activeEnrollments),
+                'assessments_available' => [
+                    'count' => $availableAssessments->count(),
+                    'items' => $availableAssessments->take(self::MAX_AVAILABLE_ASSESSMENT_ITEMS)
+                        ->map(fn (array $card): array => [
+                            'title' => $card['title'],
+                            'class_name' => $card['class_name'],
+                            'start_url' => $card['start_url'],
+                        ])->values()->all(),
+                ],
+            ],
+            'progress' => $this->progressSummary($activeEnrollmentIds, $summaries),
+            'assessments' => array_slice($assessments, 0, self::MAX_ASSESSMENTS),
+        ];
+    }
+
+    /** @return Collection<int, Enrollment> */
+    private function activeEnrollments(User $user): Collection
+    {
+        return Enrollment::query()
+            ->where('student_id', $user->id)
+            ->where('status', EnrollmentStatus::Active->value)
+            ->whereHas('learningClass', function ($query): void {
+                $query->where('status', LearningClassStatus::Active->value)
+                    ->whereHas('course', function ($query): void {
+                        $query->where('status', AcademicStatus::Active->value)
+                            ->whereHas('program', fn ($query) => $query->where('status', AcademicStatus::Active->value));
+                    });
+            })
+            ->with(['learningClass.course.program:id,name'])
+            ->orderByDesc('enrolled_at')
+            ->get();
+    }
+
+    /**
+     * @param  Collection<int, Enrollment>  $activeEnrollments
+     * @param  array<int, array{completed_lessons: int, total_lessons: int, percentage: int, continue_lesson_id: int|null}>  $summaries
+     * @return array<int, array<string, mixed>>
+     */
+    private function continueLearningCards(Collection $activeEnrollments, array $summaries): array
+    {
+        return $activeEnrollments->take(self::MAX_CONTINUE_LEARNING)
+            ->map(function (Enrollment $enrollment) use ($summaries): array {
+                $learningClass = $enrollment->learningClass;
+                $summary = $summaries[$enrollment->id];
+                $continueLessonId = $summary['continue_lesson_id'];
+                $continueLesson = $continueLessonId === null ? null : Lesson::query()->find($continueLessonId);
+                $mayContinue = $continueLesson instanceof Lesson
+                    && $this->competencyAccess->mayOpenLesson($enrollment, $continueLesson);
+
+                return [
+                    'enrollment_id' => $enrollment->id,
+                    'learning_class_id' => $learningClass->id,
+                    'name' => $learningClass->name,
+                    'course' => $learningClass->course->name,
+                    'program' => $learningClass->course->program->name,
+                    'completed_lessons' => $summary['completed_lessons'],
+                    'total_lessons' => $summary['total_lessons'],
+                    'percentage' => $summary['percentage'],
+                    'continue_lesson_title' => $mayContinue ? $continueLesson->title : null,
+                    'continue_url' => $mayContinue
+                        ? route('student.lessons.show', [$learningClass, $continueLesson])
+                        : route('student.classes.show', $learningClass),
+                    'class_url' => route('student.classes.show', $learningClass),
+                ];
+            })->values()->all();
+    }
+
+    /**
+     * @param  Collection<int, Enrollment>  $activeEnrollments
+     * @return array<int, array<string, mixed>>
+     */
+    private function remedialItems(Collection $activeEnrollments): array
+    {
+        $enrollmentsById = $activeEnrollments->keyBy('id');
+
+        return RemedialAssignment::query()
+            ->where('status', RemedialAssignmentStatus::Assigned->value)
+            ->whereIn('enrollment_id', $enrollmentsById->keys())
+            ->with('competency:id,name')
+            ->orderBy('assigned_at')
+            ->limit(self::MAX_REMEDIAL_ITEMS)
+            ->get()
+            ->map(fn (RemedialAssignment $item): array => [
+                'enrollment_id' => $item->enrollment_id,
+                'competency_name' => $item->competency->name,
+                'class_name' => $enrollmentsById->get($item->enrollment_id)?->learningClass->name,
+                'remedial_url' => route('student.remedials.show', $item),
+            ])->values()->all();
+    }
+
+    /**
+     * @param  Collection<int, Enrollment>  $activeEnrollments
+     * @return array<int, array<string, mixed>>
+     */
+    private function assessmentCards(Collection $activeEnrollments): array
+    {
+        $cards = [];
+
+        foreach ($activeEnrollments as $enrollment) {
+            foreach ($this->assessmentPayloads->assignmentsForEnrollment($enrollment) as $card) {
+                if (! in_array($card['availability'], self::ACTIONABLE_ASSESSMENT_AVAILABILITY, true)) {
+                    continue;
+                }
+
+                $cards[] = [
+                    ...$card,
+                    'class_name' => $enrollment->learningClass->name,
+                ];
+            }
+        }
+
+        usort(
+            $cards,
+            fn (array $a, array $b): int => $this->availabilityRank($a['availability']) <=> $this->availabilityRank($b['availability']),
+        );
+
+        return $cards;
+    }
+
+    private function availabilityRank(string $availability): int
+    {
+        return match ($availability) {
+            'In Progress' => 0,
+            'Available' => 1,
+            default => 2,
+        };
+    }
+
+    /**
+     * @param  array<int, int>  $activeEnrollmentIds
+     * @param  array<int, array{completed_lessons: int, total_lessons: int, percentage: int, continue_lesson_id: int|null}>  $summaries
+     * @return array<string, int>
+     */
+    private function progressSummary(array $activeEnrollmentIds, array $summaries): array
+    {
+        $completedLessons = 0;
+        $totalLessons = 0;
+
+        foreach ($activeEnrollmentIds as $id) {
+            $completedLessons += $summaries[$id]['completed_lessons'];
+            $totalLessons += $summaries[$id]['total_lessons'];
+        }
+
+        return [
+            'completed_lessons' => $completedLessons,
+            'total_lessons' => $totalLessons,
+            'competencies_mastered' => StudentCompetencyProgress::query()
+                ->whereIn('enrollment_id', $activeEnrollmentIds)
+                ->where('status', StudentCompetencyStatus::Mastered->value)
+                ->count(),
+            'competencies_total' => StudentCompetencyProgress::query()
+                ->whereIn('enrollment_id', $activeEnrollmentIds)
+                ->count(),
+        ];
+    }
+}
