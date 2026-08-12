@@ -45,6 +45,14 @@ class RichLessonFrontendIntegrationTest extends TestCase
             $this->assertStringContainsString($selectionGuard, $editor);
         }
 
+        foreach (['handleDOMEvents', 'syncTextSelectionAfterAtomClick', 'TextSelection.near', 'view.posAtCoords', 'view.posAtDOM'] as $textSelectionGuard) {
+            $this->assertStringContainsString($textSelectionGuard, $editor);
+        }
+
+        $this->assertStringContainsString('if (!isNodeSelection(view.state.selection))', $editor);
+        $this->assertStringContainsString('view.state.tr.setSelection(selection)', $editor);
+        $this->assertStringContainsString('if (!selection.$from.parent.inlineContent)', $editor);
+
         $this->assertStringContainsString('placeholder.length', $editor);
         $this->assertStringContainsString('novalidate', $link);
         $this->assertStringContainsString('type="text"', $link);

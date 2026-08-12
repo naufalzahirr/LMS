@@ -24,6 +24,8 @@ import { getMarkRange, isNodeSelection } from '@tiptap/core';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import LinkExtension from '@tiptap/extension-link';
 import { TableKit } from '@tiptap/extension-table';
+import { TextSelection } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import { common, createLowlight } from 'lowlight';
@@ -80,6 +82,18 @@ const calloutTypes: LessonCalloutType[] = [
     'warning',
     'important',
 ];
+const editableTextTargetSelector = [
+    'p',
+    'h1',
+    'h2',
+    'h3',
+    'li',
+    'blockquote',
+    'pre',
+    'th',
+    'td',
+    'aside[data-lesson-callout] > div',
+].join(',');
 const lowlight = createLowlight(common);
 const selectedLanguage = ref<LessonCodeLanguage>('plain');
 const selectedCallout = ref<LessonCalloutType>('info');
@@ -163,6 +177,10 @@ const editor = useEditor({
         attributes: {
             class: 'tiptap min-h-[28rem] px-5 py-5 focus:outline-none md:px-7',
             'aria-label': 'Rich lesson content editor',
+        },
+        handleDOMEvents: {
+            click: (view, event) =>
+                syncTextSelectionAfterAtomClick(view, event),
         },
         handlePaste: (_view, event) => openClipboardImage(event),
         handleDrop: (_view, event) => openDroppedImage(event),
@@ -686,6 +704,82 @@ function insertBlockAt(
         .focus()
         .insertContentAt(insertionPosition, node)
         .run();
+}
+
+function syncTextSelectionAfterAtomClick(
+    view: EditorView,
+    event: MouseEvent,
+): boolean {
+    if (!isNodeSelection(view.state.selection)) {
+        return false;
+    }
+
+    const clickedElement =
+        event.target instanceof Element ? event.target : null;
+    const clickedContainer = clickedElement?.closest<HTMLElement>(
+        editableTextTargetSelector,
+    );
+
+    if (!clickedContainer || !view.dom.contains(clickedContainer)) {
+        return false;
+    }
+
+    const textBlock = ['LI', 'TH', 'TD'].includes(clickedContainer.tagName)
+        ? (clickedContainer.querySelector<HTMLElement>(
+              'p, h1, h2, h3, blockquote, pre',
+          ) ?? clickedContainer)
+        : clickedContainer;
+    let position: number | null = null;
+    const domSelection = view.dom.ownerDocument.getSelection();
+
+    if (
+        domSelection?.anchorNode &&
+        textBlock.contains(domSelection.anchorNode)
+    ) {
+        try {
+            position = view.posAtDOM(
+                domSelection.anchorNode,
+                domSelection.anchorOffset,
+            );
+        } catch {
+            position = null;
+        }
+    }
+
+    const rect = textBlock.getBoundingClientRect();
+    const clickIsInsideTarget =
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom;
+
+    if (position === null && clickIsInsideTarget) {
+        position =
+            view.posAtCoords({ left: event.clientX, top: event.clientY })
+                ?.pos ?? null;
+    }
+
+    if (position === null) {
+        try {
+            position = view.posAtDOM(textBlock, textBlock.childNodes.length);
+        } catch {
+            return false;
+        }
+    }
+
+    const resolvedPosition = view.state.doc.resolve(
+        Math.max(0, Math.min(position, view.state.doc.content.size)),
+    );
+    const selection = TextSelection.near(resolvedPosition, -1);
+
+    if (!selection.$from.parent.inlineContent) {
+        return false;
+    }
+
+    view.dispatch(view.state.tr.setSelection(selection));
+    view.focus();
+
+    return false;
 }
 
 function openClipboardImage(event: ClipboardEvent): boolean {
