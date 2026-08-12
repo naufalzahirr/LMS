@@ -73,7 +73,8 @@ class StudentDashboardQueryService
                         ->map(fn (array $card): array => [
                             'title' => $card['title'],
                             'class_name' => $card['class_name'],
-                            'start_url' => $card['start_url'],
+                            'start_url' => $card['action']['url'],
+                            'method' => $card['action']['method'],
                         ])->values()->all(),
                 ],
             ],
@@ -174,6 +175,7 @@ class StudentDashboardQueryService
                 $cards[] = [
                     ...$card,
                     'class_name' => $enrollment->learningClass->name,
+                    'action' => $this->assessmentAction($card),
                 ];
             }
         }
@@ -193,6 +195,39 @@ class StudentDashboardQueryService
             'Available' => 1,
             default => 2,
         };
+    }
+
+    /**
+     * Map an assignmentCard() payload to the single CTA the dashboard should show.
+     *
+     * `can_start` alone is not a safe signal: it stays true whenever attempts remain,
+     * even while the latest attempt is awaiting manual grading, so a submission
+     * pending review must never fall through to a "start a new attempt" action.
+     *
+     * @param  array<string, mixed>  $card
+     * @return array{label: string|null, url: string|null, method: 'get'|'post'|null}
+     */
+    private function assessmentAction(array $card): array
+    {
+        if ($card['in_progress_url'] !== null) {
+            return ['label' => 'Continue Assessment', 'url' => $card['in_progress_url'], 'method' => 'get'];
+        }
+
+        if ($card['availability'] === 'Submitted / Pending Grading') {
+            return $card['latest_attempt_result_url'] !== null
+                ? ['label' => 'View submission', 'url' => $card['latest_attempt_result_url'], 'method' => 'get']
+                : ['label' => 'Awaiting grading', 'url' => null, 'method' => null];
+        }
+
+        if ($card['can_start']) {
+            return ['label' => $card['start_label'], 'url' => $card['start_url'], 'method' => 'post'];
+        }
+
+        if ($card['latest_attempt_result_url'] !== null) {
+            return ['label' => 'View result', 'url' => $card['latest_attempt_result_url'], 'method' => 'get'];
+        }
+
+        return ['label' => null, 'url' => null, 'method' => null];
     }
 
     /**

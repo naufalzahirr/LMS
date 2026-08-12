@@ -6,6 +6,7 @@ use App\Enums\AcademicStatus;
 use App\Enums\EnrollmentStatus;
 use App\Enums\LearningClassStatus;
 use App\Enums\LessonProgressStatus;
+use App\Models\AssessmentAttempt;
 use App\Models\Competency;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -121,6 +122,82 @@ class StudentDashboardTest extends TestCase
         $response->assertDontSee('accepted_answers')
             ->assertDontSee('correct_option_ids')
             ->assertDontSee('correct_boolean');
+    }
+
+    public function test_not_started_assessment_offers_a_start_action(): void
+    {
+        $student = $this->userWithRole('Student');
+        $context = $this->context($student);
+        $assignment = LearningClassAssessment::factory()->create([
+            'learning_class_id' => $context['learningClass']->id,
+            'max_attempts' => 2,
+        ]);
+
+        $this->actingAs($student)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/Dashboard')
+                ->where('dashboard.assessments.0.availability', 'Available')
+                ->where('dashboard.assessments.0.action.label', 'Start Assessment')
+                ->where('dashboard.assessments.0.action.method', 'post')
+                ->where(
+                    'dashboard.assessments.0.action.url',
+                    route('student.assessments.start', [$context['learningClass'], $assignment]),
+                ));
+    }
+
+    public function test_in_progress_assessment_offers_a_continue_action(): void
+    {
+        $student = $this->userWithRole('Student');
+        $context = $this->context($student);
+        $assignment = LearningClassAssessment::factory()->create([
+            'learning_class_id' => $context['learningClass']->id,
+            'max_attempts' => 2,
+        ]);
+        $attempt = AssessmentAttempt::factory()->inProgress()->create([
+            'learning_class_assessment_id' => $assignment->id,
+            'enrollment_id' => $context['enrollment']->id,
+        ]);
+
+        $this->actingAs($student)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/Dashboard')
+                ->where('dashboard.assessments.0.availability', 'In Progress')
+                ->where('dashboard.assessments.0.action.label', 'Continue Assessment')
+                ->where('dashboard.assessments.0.action.method', 'get')
+                ->where('dashboard.assessments.0.action.url', route('student.assessment-attempts.show', $attempt)));
+    }
+
+    public function test_pending_grading_assessment_does_not_offer_a_start_action(): void
+    {
+        $student = $this->userWithRole('Student');
+        $context = $this->context($student);
+        // max_attempts=2 with 1 used means the underlying `can_start` flag is still
+        // true (a retry is technically allowed) — this is exactly the condition that
+        // previously leaked "Start Assessment" for a submission awaiting grading.
+        $assignment = LearningClassAssessment::factory()->create([
+            'learning_class_id' => $context['learningClass']->id,
+            'max_attempts' => 2,
+        ]);
+        $attempt = AssessmentAttempt::factory()->pendingGrading()->create([
+            'learning_class_assessment_id' => $assignment->id,
+            'enrollment_id' => $context['enrollment']->id,
+            'attempt_number' => 1,
+        ]);
+
+        $this->actingAs($student)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/Dashboard')
+                ->where('dashboard.assessments.0.availability', 'Submitted / Pending Grading')
+                ->where('dashboard.assessments.0.can_start', true)
+                ->where('dashboard.assessments.0.action.label', 'View submission')
+                ->where('dashboard.assessments.0.action.method', 'get')
+                ->where(
+                    'dashboard.assessments.0.action.url',
+                    route('student.assessment-attempts.result', $attempt),
+                ));
     }
 
     public function test_shows_all_caught_up_when_nothing_needs_action(): void

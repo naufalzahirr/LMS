@@ -99,6 +99,60 @@ class AssessmentAuthoringManagementTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_tutor_cannot_manipulate_assessment_questions_outside_their_scope(): void
+    {
+        $tutor = $this->userWithRole('Tutor');
+        $assignedCourse = Course::factory()->create();
+        LearningClass::factory()->for($assignedCourse)->create(['status' => LearningClassStatus::Active])
+            ->tutors()->attach($tutor);
+        $assignedCompetency = Competency::factory()->for($assignedCourse)->create();
+        $assignedBank = QuestionBank::factory()->for($assignedCourse)->create();
+        $assignedQuestion = Question::factory()->for($assignedBank)->for($assignedCompetency)->multipleChoice()->create();
+        $ownAssessment = Assessment::factory()->for($assignedCompetency)->create();
+        $ownAssessmentQuestion = $ownAssessment->assessmentQuestions()->create([
+            'question_id' => $assignedQuestion->id,
+            'points' => '1.00',
+            'sort_order' => 0,
+        ]);
+
+        // A second assessment entirely outside the tutor's assigned course.
+        $otherCourse = Course::factory()->create();
+        $otherCompetency = Competency::factory()->for($otherCourse)->create();
+        $otherBank = QuestionBank::factory()->for($otherCourse)->create();
+        $otherQuestion = Question::factory()->for($otherBank)->for($otherCompetency)->multipleChoice()->create();
+        $otherAssessment = Assessment::factory()->for($otherCompetency)->create();
+        $otherAssessmentQuestion = $otherAssessment->assessmentQuestions()->create([
+            'question_id' => $otherQuestion->id,
+            'points' => '1.00',
+            'sort_order' => 0,
+        ]);
+
+        // Cannot touch the unassigned assessment or its question at all.
+        $this->actingAs($tutor)
+            ->patch(route('admin.assessments.questions.update', [$otherAssessment, $otherAssessmentQuestion]), ['points' => '2.00'])
+            ->assertForbidden();
+        $this->actingAs($tutor)
+            ->patch(route('admin.assessments.questions.move', [$otherAssessment, $otherAssessmentQuestion, 'up']))
+            ->assertForbidden();
+        $this->actingAs($tutor)
+            ->delete(route('admin.assessments.questions.destroy', [$otherAssessment, $otherAssessmentQuestion]))
+            ->assertForbidden();
+
+        // Cannot use an assessment they DO own to reach a question that belongs to a
+        // different assessment via a crafted URL — the policy check on the owned
+        // assessment would pass, so the mismatch must be caught server-side.
+        $this->actingAs($tutor)
+            ->patch(route('admin.assessments.questions.update', [$ownAssessment, $otherAssessmentQuestion]), ['points' => '2.00'])
+            ->assertSessionHasErrors('assessment');
+        $this->actingAs($tutor)
+            ->delete(route('admin.assessments.questions.destroy', [$ownAssessment, $otherAssessmentQuestion]))
+            ->assertSessionHasErrors('assessment');
+
+        $this->assertSame('1.00', $otherAssessmentQuestion->refresh()->points);
+        $this->assertDatabaseHas('assessment_questions', ['id' => $otherAssessmentQuestion->id]);
+        $this->assertDatabaseHas('assessment_questions', ['id' => $ownAssessmentQuestion->id]);
+    }
+
     public function test_student_and_parent_cannot_access_authoring_routes(): void
     {
         foreach (['Student', 'Parent'] as $role) {

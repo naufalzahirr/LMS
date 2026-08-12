@@ -20,6 +20,12 @@ export type DashboardAssessmentMastery = {
     remedial_url: string | null;
 } | null;
 
+export type DashboardAssessmentAction = {
+    label: string | null;
+    url: string | null;
+    method: 'get' | 'post' | null;
+};
+
 export type DashboardAssessmentCard = {
     id: number;
     title: string;
@@ -38,7 +44,9 @@ export type DashboardAssessmentCard = {
     start_url: string;
     intro_url: string;
     in_progress_url: string | null;
+    latest_attempt_result_url: string | null;
     mastery: DashboardAssessmentMastery;
+    action: DashboardAssessmentAction;
 };
 
 export type StudentContinueLearningItem = {
@@ -65,7 +73,8 @@ export type StudentRemedialItem = {
 export type StudentAvailableAssessmentItem = {
     title: string;
     class_name: string;
-    start_url: string;
+    start_url: string | null;
+    method: 'get' | 'post' | null;
 };
 
 export type StudentDashboard = {

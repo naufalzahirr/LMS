@@ -113,9 +113,15 @@ defineOptions({
         </section>
 
         <section aria-labelledby="attention-heading" class="space-y-4">
-            <h2 id="attention-heading" class="text-lg font-semibold">
-                Needs attention
-            </h2>
+            <div>
+                <h2 id="attention-heading" class="text-lg font-semibold">
+                    Needs attention
+                </h2>
+                <p class="text-sm text-muted-foreground">
+                    Administrative setup issues, separate from student learning
+                    status below.
+                </p>
+            </div>
 
             <Card
                 v-if="

@@ -170,6 +170,7 @@ class StudentAssessmentPayloadService
         $inProgress = $assignment->attempts->first(
             fn (AssessmentAttempt $attempt): bool => $attempt->status === AssessmentAttemptStatus::InProgress,
         );
+        $latestAttempt = $assignment->attempts->first();
         $usedAttempts = $assignment->attempts->count();
         $mastery = $this->competencyAccess->masteryAssessmentState($enrollment, $assignment);
         $canStart = $this->canStart($enrollment, $assignment, $usedAttempts)
@@ -194,6 +195,10 @@ class StudentAssessmentPayloadService
             'intro_url' => route('student.assessments.show', [$enrollment->learning_class_id, $assignment]),
             'in_progress_url' => $inProgress instanceof AssessmentAttempt
                 ? route('student.assessment-attempts.show', $inProgress)
+                : null,
+            'latest_attempt_result_url' => $latestAttempt instanceof AssessmentAttempt
+                && $latestAttempt->status !== AssessmentAttemptStatus::InProgress
+                ? route('student.assessment-attempts.result', $latestAttempt)
                 : null,
             'mastery' => $mastery,
         ];

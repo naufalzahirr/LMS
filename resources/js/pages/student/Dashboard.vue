@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import {
     ArrowRight,
     BookOpenCheck,
@@ -20,6 +20,24 @@ import { index as studentClassesIndex } from '@/routes/student/classes';
 import type { StudentDashboard } from '@/types/dashboard';
 
 const props = defineProps<{ dashboard: StudentDashboard }>();
+
+// Starting an assessment is a POST (it may create a new attempt), so it must
+// not be triggered via a plain GET `<Link>` — that would 405 against the
+// start route. Resuming/viewing an existing attempt is a normal GET visit.
+function performAssessmentAction(action: {
+    url: string | null;
+    method: 'get' | 'post' | null;
+}): void {
+    if (!action.url) {
+        return;
+    }
+
+    if (action.method === 'post') {
+        router.post(action.url);
+    } else {
+        router.visit(action.url);
+    }
+}
 
 defineOptions({
     layout: {
@@ -175,10 +193,15 @@ defineOptions({
                                 {{ item.class_name }} · Available now
                             </p>
                         </div>
-                        <Button as-child>
-                            <Link :href="item.start_url">
-                                <ClipboardCheck /> Start assessment
-                            </Link>
+                        <Button
+                            @click="
+                                performAssessmentAction({
+                                    url: item.start_url,
+                                    method: item.method,
+                                })
+                            "
+                        >
+                            <ClipboardCheck /> Start assessment
                         </Button>
                     </CardContent>
                 </Card>
@@ -261,14 +284,20 @@ defineOptions({
                                 assessment.availability
                             }}</Badge>
                             <Button
-                                v-if="assessment.can_start"
-                                as-child
+                                v-if="assessment.action.url"
                                 size="sm"
+                                @click="
+                                    performAssessmentAction(assessment.action)
+                                "
                             >
-                                <Link :href="assessment.start_url">{{
-                                    assessment.start_label
-                                }}</Link>
+                                {{ assessment.action.label }}
                             </Button>
+                            <span
+                                v-else-if="assessment.action.label"
+                                class="text-sm text-muted-foreground"
+                            >
+                                {{ assessment.action.label }}
+                            </span>
                         </div>
                     </CardContent>
                 </Card>
