@@ -150,6 +150,7 @@ class LessonController extends Controller
             'statuses' => AcademicStatus::options(),
             'contentDocument' => $this->lessonContent->emptyDocument(),
             'assetUploadUrl' => null,
+            'checkpointUrl' => null,
             'previewUrl' => null,
             'draftEnsureUrl' => route('admin.lesson-drafts.store'),
         ]);
@@ -223,7 +224,7 @@ class LessonController extends Controller
                 'content' => $lesson->content,
                 'external_url' => $lesson->external_url,
                 'has_file' => $lesson->managedFilePath() !== null,
-                'content_document' => $this->lessonContent->forRendering(
+                'content_document' => $this->lessonContent->forAuthoring(
                     $lesson,
                     fn (LessonAsset $asset): array => [
                         'url' => route('admin.lesson-assets.file', [$lesson, $asset]),
@@ -237,6 +238,7 @@ class LessonController extends Controller
             ...$this->hierarchyOptions($user, true),
             'statuses' => AcademicStatus::options(),
             'assetUploadUrl' => route('admin.lesson-assets.store', $lesson),
+            'checkpointUrl' => route('admin.lesson-checkpoints.store', $lesson),
             'previewUrl' => route('admin.lessons.preview', $lesson),
             'draftEnsureUrl' => null,
         ]);

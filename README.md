@@ -1,6 +1,6 @@
 # Mastery Learning Center
 
-Mastery Learning Center is a Laravel and Vue application for competency-based learning. It supports rich multimedia Lesson authoring, class delivery, assessment attempts and grading, mastery evaluation, remedial learning, parent visibility, and progress reporting.
+Mastery Learning Center is a Laravel and Vue application for competency-based learning. It supports rich multimedia Lesson authoring with formative interactive checkpoints, class delivery, assessment attempts and grading, mastery evaluation, remedial learning, parent visibility, and progress reporting.
 
 ## Technology
 

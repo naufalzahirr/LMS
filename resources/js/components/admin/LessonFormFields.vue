@@ -70,6 +70,7 @@ const document = ref<LessonDocument>(
     props.initial?.content_document ?? props.contentDocument,
 );
 const activeAssetUploadUrl = ref(props.assetUploadUrl);
+const activeCheckpointUrl = ref(props.checkpointUrl);
 const activePreviewUrl = ref(props.previewUrl);
 const draftId = ref<number | null>(null);
 const draftState = ref<LessonDraftAuthoringState | null>(null);
@@ -152,12 +153,14 @@ watch(
         if (moduleId !== null && moduleId === draftState.value?.moduleId) {
             draftError.value = '';
             activeAssetUploadUrl.value = draftState.value.assetUploadUrl;
+            activeCheckpointUrl.value = draftState.value.checkpointUrl;
             activePreviewUrl.value = draftState.value.previewUrl;
 
             return;
         }
 
         activeAssetUploadUrl.value = null;
+        activeCheckpointUrl.value = null;
         activePreviewUrl.value = null;
         mode.value = 'edit';
         previewDocument.value = null;
@@ -177,6 +180,7 @@ async function ensureDraftForCurrentModule(): Promise<LessonDraftAuthoringState 
     if (draftState.value?.moduleId === moduleId) {
         draftError.value = '';
         activeAssetUploadUrl.value = draftState.value.assetUploadUrl;
+        activeCheckpointUrl.value = draftState.value.checkpointUrl;
         activePreviewUrl.value = draftState.value.previewUrl;
 
         return draftState.value;
@@ -217,6 +221,7 @@ async function ensureDraftForCurrentModule(): Promise<LessonDraftAuthoringState 
     }
 
     activeAssetUploadUrl.value = prepared.assetUploadUrl;
+    activeCheckpointUrl.value = prepared.checkpointUrl;
     activePreviewUrl.value = prepared.previewUrl;
 
     return prepared;
@@ -254,6 +259,7 @@ async function requestDraft(
             id: payload.draft.id,
             moduleId,
             assetUploadUrl: payload.draft.asset_upload_url,
+            checkpointUrl: payload.draft.checkpoint_url,
             previewUrl: payload.draft.preview_url,
             discardUrl: payload.draft.discard_url,
             expiresAt: payload.draft.expires_at,
@@ -278,6 +284,12 @@ async function ensureAssetUploadUrl(): Promise<string | null> {
     const prepared = await ensureDraftForCurrentModule();
 
     return prepared?.assetUploadUrl ?? null;
+}
+
+async function ensureCheckpointUrl(): Promise<string | null> {
+    const prepared = await ensureDraftForCurrentModule();
+
+    return prepared?.checkpointUrl ?? null;
 }
 
 async function openPreview(): Promise<void> {
@@ -601,11 +613,15 @@ function selectedModuleId(): number | null {
             v-show="mode === 'edit'"
             v-model="document"
             :asset-upload-url="activeAssetUploadUrl"
+            :checkpoint-url="activeCheckpointUrl"
             :can-prepare-asset-upload="
                 Boolean(draftEnsureUrl && selectedModuleId())
             "
             :ensure-asset-upload-url="
                 draftEnsureUrl ? ensureAssetUploadUrl : undefined
+            "
+            :ensure-checkpoint-url="
+                draftEnsureUrl ? ensureCheckpointUrl : undefined
             "
         />
         <div

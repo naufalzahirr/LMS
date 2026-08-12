@@ -145,3 +145,47 @@ export const LessonFile = Node.create({
         ];
     },
 });
+
+export const LessonCheckpoint = Node.create({
+    name: 'lessonCheckpoint',
+    group: 'block',
+    atom: true,
+    draggable: true,
+
+    addAttributes() {
+        return {
+            checkpointId: { default: null },
+            checkpoint: { default: null },
+        };
+    },
+
+    parseHTML() {
+        return [{ tag: 'section[data-lesson-checkpoint]' }];
+    },
+
+    renderHTML({ node, HTMLAttributes }) {
+        const checkpoint = node.attrs.checkpoint as {
+            type_label?: string;
+            prompt?: string;
+        } | null;
+
+        return [
+            'section',
+            mergeAttributes(HTMLAttributes, {
+                'data-lesson-checkpoint': '',
+                class: 'lesson-editor-checkpoint',
+            }),
+            [
+                'span',
+                { class: 'lesson-editor-checkpoint-label' },
+                checkpoint?.type_label ?? 'Checkpoint',
+            ],
+            [
+                'strong',
+                {},
+                checkpoint?.prompt ?? 'Interactive learning checkpoint',
+            ],
+            ['span', {}, 'Select this block to edit or remove it.'],
+        ];
+    },
+});

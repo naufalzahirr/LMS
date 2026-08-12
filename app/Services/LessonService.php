@@ -17,6 +17,7 @@ class LessonService
     public function __construct(
         private readonly LessonContentService $contentService,
         private readonly LessonContentMigrationService $contentMigration,
+        private readonly LessonCheckpointService $checkpoints,
     ) {}
 
     /**
@@ -40,12 +41,17 @@ class LessonService
                 }
 
                 if ($data['rich_content']) {
+                    $document = $this->contentService->normalize(
+                        $lesson,
+                        $data['content_document'] ?? $this->contentService->emptyDocument(),
+                    );
                     $lesson->forceFill([
-                        'content_document' => $this->contentService->normalize(
-                            $lesson,
-                            $data['content_document'] ?? $this->contentService->emptyDocument(),
-                        ),
+                        'content_document' => $document,
                     ])->save();
+                    $this->checkpoints->deleteUnreferenced(
+                        $lesson,
+                        $this->contentService->referencedCheckpointIds($document),
+                    );
                 }
 
                 return $lesson->refresh();
@@ -85,6 +91,10 @@ class LessonService
                 ...$this->metadataAttributes($data),
                 'content_document' => $document,
             ])->save();
+            $this->checkpoints->deleteUnreferenced(
+                $lesson,
+                $this->contentService->referencedCheckpointIds($document),
+            );
 
             return $lesson->refresh();
         }
@@ -117,6 +127,10 @@ class LessonService
         }
 
         $updatedLesson = $this->contentMigration->migrateLesson($updatedLesson);
+        $this->checkpoints->deleteUnreferenced(
+            $updatedLesson,
+            $this->contentService->referencedCheckpointIds($updatedLesson->content_document),
+        );
 
         if ($oldPath !== null && $oldPath !== $updatedLesson->file_path) {
             $lesson->assets()->where('file_path', $oldPath)->delete();
@@ -132,6 +146,7 @@ class LessonService
 
         DB::transaction(function () use ($lesson): void {
             $lesson->assets()->delete();
+            $lesson->checkpoints()->delete();
             $lesson->forceFill(['file_path' => null])->save();
             $lesson->delete();
         });
@@ -177,6 +192,10 @@ class LessonService
                     'draft_owner_id' => null,
                     'draft_expires_at' => null,
                 ])->save();
+                $this->checkpoints->deleteUnreferenced(
+                    $lesson,
+                    $this->contentService->referencedCheckpointIds($document),
+                );
 
                 return $lesson->refresh();
             });

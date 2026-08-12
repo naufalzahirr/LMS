@@ -5,6 +5,7 @@ import {
     ArrowRight,
     CheckCircle2,
     Circle,
+    CircleHelp,
     CirclePlay,
     Clock3,
     LockKeyhole,
@@ -33,6 +34,10 @@ type LessonDetails = {
     module: string;
     content_document: LessonDocument;
     progress_status: LessonProgressStatus;
+    checkpoint_summary: {
+        mastered: number;
+        total: number;
+    };
 };
 
 const props = defineProps<{
@@ -263,6 +268,16 @@ function setProgress(status: 'in_progress' | 'completed'): void {
                             class="gap-1 text-emerald-700 dark:text-emerald-400"
                         >
                             <CheckCircle2 class="size-3.5" /> Completed
+                        </Badge>
+                        <Badge
+                            v-if="lesson.checkpoint_summary.total > 0"
+                            variant="outline"
+                            class="gap-1"
+                        >
+                            <CircleHelp class="size-3.5" />
+                            {{ lesson.checkpoint_summary.mastered }} /
+                            {{ lesson.checkpoint_summary.total }} checkpoints
+                            correct
                         </Badge>
                     </div>
                 </header>

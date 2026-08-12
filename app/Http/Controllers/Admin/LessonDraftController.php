@@ -54,6 +54,7 @@ class LessonDraftController extends Controller
             'id' => $draft->id,
             'expires_at' => $draft->draft_expires_at?->toIso8601String(),
             'asset_upload_url' => route('admin.lesson-assets.store', $draft),
+            'checkpoint_url' => route('admin.lesson-checkpoints.store', $draft),
             'preview_url' => route('admin.lessons.preview', $draft),
             'discard_url' => route('admin.lesson-drafts.destroy', $draft),
         ];

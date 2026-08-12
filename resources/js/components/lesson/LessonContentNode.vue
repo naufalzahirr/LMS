@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import LessonCallout from '@/components/lesson/LessonCallout.vue';
+import LessonCheckpointNode from '@/components/lesson/LessonCheckpointNode.vue';
 import LessonCodeBlock from '@/components/lesson/LessonCodeBlock.vue';
 import LessonFileResource from '@/components/lesson/LessonFileResource.vue';
 import LessonImageNode from '@/components/lesson/LessonImageNode.vue';
@@ -130,4 +131,8 @@ defineProps<{ node: LessonNode }>();
         />
     </LessonCallout>
     <LessonFileResource v-else-if="node.type === 'lessonFile'" :node="node" />
+    <LessonCheckpointNode
+        v-else-if="node.type === 'lessonCheckpoint'"
+        :node="node"
+    />
 </template>

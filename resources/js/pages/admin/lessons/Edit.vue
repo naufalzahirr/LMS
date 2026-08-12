@@ -81,6 +81,7 @@ defineOptions({
                         :initial="lesson"
                         :content-document="lesson.content_document"
                         :asset-upload-url="assetUploadUrl"
+                        :checkpoint-url="checkpointUrl"
                         :preview-url="previewUrl"
                         :draft-ensure-url="draftEnsureUrl"
                         @authoring-busy="authoringBusy = $event"

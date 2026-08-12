@@ -8,16 +8,20 @@ use App\Models\Enrollment;
 use App\Models\LearningClass;
 use App\Models\Lesson;
 use App\Models\LessonAsset;
+use App\Models\LessonCheckpoint;
+use App\Models\LessonCheckpointAttempt;
 use App\Models\LessonProgress;
 use App\Models\Module;
 use App\Models\User;
 use App\Services\CompetencyAccessService;
 use App\Services\LearningProgressQueryService;
+use App\Services\LessonCheckpointService;
 use App\Services\LessonContentMigrationService;
 use App\Services\LessonContentService;
 use App\Services\LessonProgressService;
 use App\Services\MasteryProgressQueryService;
 use App\Services\StudentLearningAccessService;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -35,6 +39,7 @@ class LessonController extends Controller
         private readonly MasteryProgressQueryService $masteryProgress,
         private readonly LessonContentService $lessonContent,
         private readonly LessonContentMigrationService $contentMigration,
+        private readonly LessonCheckpointService $lessonCheckpoints,
     ) {}
 
     public function show(Request $request, LearningClass $learningClass, Lesson $lesson): Response
@@ -62,6 +67,17 @@ class LessonController extends Controller
             ->keyBy('lesson_id');
         $lesson = $this->contentMigration->migrateLesson($lesson);
         $lesson->load('module.competency');
+        $checkpointIds = $this->lessonContent->referencedCheckpointIds($lesson->content_document);
+        $checkpointAttempts = LessonCheckpointAttempt::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->whereIn('lesson_checkpoint_id', $checkpointIds)
+            ->get()
+            ->groupBy('lesson_checkpoint_id');
+        $masteredCheckpointCount = $checkpointAttempts
+            ->filter(fn (EloquentCollection $attempts): bool => $attempts->contains(
+                fn (LessonCheckpointAttempt $attempt): bool => $attempt->is_correct,
+            ))
+            ->count();
         $completedLessons = $allProgress->filter(
             fn (LessonProgress $record): bool => $record->status->value === 'completed',
         )->count();
@@ -92,14 +108,29 @@ class LessonController extends Controller
                 'file_download_url' => $lesson->managedFilePath() === null
                     ? null
                     : route('student.lessons.file', [$learningClass, $lesson, 'download' => 1]),
-                'content_document' => $this->lessonContent->forRendering(
+                'content_document' => $this->lessonContent->forStudent(
                     $lesson,
                     fn (LessonAsset $asset): array => [
                         'url' => route('student.lesson-assets.file', [$learningClass, $lesson, $asset]),
                         'downloadUrl' => route('student.lesson-assets.file', [$learningClass, $lesson, $asset, 'download' => 1]),
                     ],
+                    function (LessonCheckpoint $checkpoint) use ($checkpointAttempts, $enrollment, $learningClass, $lesson, $canMutate): array {
+                        $attempts = $checkpointAttempts->get($checkpoint->id);
+
+                        return $this->lessonCheckpoints->studentPayload(
+                            $checkpoint,
+                            $enrollment,
+                            route('student.lesson-checkpoints.store', [$learningClass, $lesson, $checkpoint]),
+                            $canMutate,
+                            $attempts instanceof EloquentCollection ? $attempts : new EloquentCollection,
+                        );
+                    },
                 ),
                 'progress_status' => $progress?->status->value ?? 'not_started',
+                'checkpoint_summary' => [
+                    'mastered' => $masteredCheckpointCount,
+                    'total' => count($checkpointIds),
+                ],
             ],
             'canMutate' => $canMutate,
             'previousLesson' => $lessonIndex > 0 ? $this->lessonLink($learningClass, $accessibleLessons[$lessonIndex - 1]) : null,

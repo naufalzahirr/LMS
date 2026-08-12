@@ -177,6 +177,18 @@
         @apply text-sm text-muted-foreground;
     }
 
+    .lesson-editor-checkpoint {
+        @apply my-5 flex flex-col gap-1 rounded-lg border border-violet-300 bg-violet-50 p-4 text-violet-950 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-100;
+    }
+
+    .lesson-editor-checkpoint > span:last-child {
+        @apply text-sm text-violet-700 dark:text-violet-300;
+    }
+
+    .lesson-editor-checkpoint-label {
+        @apply text-xs font-bold tracking-wide uppercase;
+    }
+
     .rich-lesson-editor .tiptap aside[data-lesson-callout] {
         @apply my-5 rounded-lg border border-blue-300 bg-blue-50 p-4 text-blue-950 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-100;
     }

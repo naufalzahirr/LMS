@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\EnrollmentController;
 use App\Http\Controllers\Admin\LearningClassController;
 use App\Http\Controllers\Admin\LessonAssetController;
+use App\Http\Controllers\Admin\LessonCheckpointController as AdminLessonCheckpointController;
 use App\Http\Controllers\Admin\LessonController;
 use App\Http\Controllers\Admin\LessonDraftController;
 use App\Http\Controllers\Admin\LessonPreviewController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\Student\AssessmentAttemptController as StudentAssessmen
 use App\Http\Controllers\Student\AssessmentController as StudentAssessmentController;
 use App\Http\Controllers\Student\LearningClassController as StudentLearningClassController;
 use App\Http\Controllers\Student\LessonAssetController as StudentLessonAssetController;
+use App\Http\Controllers\Student\LessonCheckpointController as StudentLessonCheckpointController;
 use App\Http\Controllers\Student\LessonController as StudentLessonController;
 use App\Http\Controllers\Student\LessonProgressController as StudentLessonProgressController;
 use App\Http\Controllers\Student\RemedialAssignmentController as StudentRemedialAssignmentController;
@@ -154,6 +156,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('admin.lessons.preview');
     Route::post('admin/lessons/{lesson}/assets', [LessonAssetController::class, 'store'])
         ->name('admin.lesson-assets.store');
+    Route::post('admin/lessons/{lesson}/checkpoints', [AdminLessonCheckpointController::class, 'store'])
+        ->name('admin.lesson-checkpoints.store');
+    Route::patch('admin/lessons/{lesson}/checkpoints/{checkpoint}', [AdminLessonCheckpointController::class, 'update'])
+        ->name('admin.lesson-checkpoints.update');
     Route::patch('admin/lessons/{lesson}/assets/{asset}', [LessonAssetController::class, 'update'])
         ->name('admin.lesson-assets.update');
     Route::delete('admin/lessons/{lesson}/assets/{asset}', [LessonAssetController::class, 'destroy'])
@@ -213,6 +219,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('student.lessons.file');
     Route::get('student/classes/{learningClass}/lessons/{lesson}/assets/{asset}/file', [StudentLessonAssetController::class, 'file'])
         ->name('student.lesson-assets.file');
+    Route::post('student/classes/{learningClass}/lessons/{lesson}/checkpoints/{checkpoint}/submit', [StudentLessonCheckpointController::class, 'store'])
+        ->middleware('throttle:lesson-checkpoint')
+        ->name('student.lesson-checkpoints.store');
     Route::patch('student/classes/{learningClass}/lessons/{lesson}/progress', [StudentLessonProgressController::class, 'update'])
         ->name('student.lesson-progress.update');
 });

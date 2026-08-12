@@ -14,6 +14,67 @@ export type LessonCodeLanguage =
 
 export type LessonCalloutType = 'info' | 'tip' | 'warning' | 'important';
 
+export type LessonCheckpointType =
+    'multiple_choice' | 'multiple_select' | 'true_false' | 'fill_blank';
+
+export type LessonCheckpointOption = {
+    id: string;
+    text: string;
+};
+
+export type LessonCheckpointPublicPayload = {
+    id: number;
+    type: LessonCheckpointType;
+    type_label: string;
+    prompt: string;
+    options: LessonCheckpointOption[];
+};
+
+export type LessonCheckpointAuthorPayload = LessonCheckpointPublicPayload & {
+    explanation: string | null;
+    correct_option_ids: string[];
+    correct_boolean: boolean | null;
+    accepted_answers: string[];
+    update_url: string;
+};
+
+export type LessonCheckpointAuthorInput = {
+    checkpoint_type: LessonCheckpointType;
+    prompt: string;
+    explanation: string | null;
+    options?: LessonCheckpointOption[];
+    correct_option_ids?: string[];
+    correct_boolean?: boolean;
+    accepted_answers?: string[];
+};
+
+export type LessonCheckpointStudentState = LessonCheckpointPublicPayload & {
+    explanation: string | null;
+    interactive: true;
+    can_submit: boolean;
+    mastered: boolean;
+    attempt_count: number;
+    submit_url: string;
+};
+
+export type LessonCheckpointPreviewPayload = LessonCheckpointPublicPayload & {
+    explanation: string | null;
+    interactive: false;
+};
+
+export type LessonCheckpointPayload =
+    | LessonCheckpointAuthorPayload
+    | LessonCheckpointStudentState
+    | LessonCheckpointPreviewPayload;
+
+export type LessonCheckpointResult = {
+    correct: boolean;
+    mastered: boolean;
+    feedback: string;
+    explanation: string | null;
+    attempt_count: number;
+};
+
 export type LessonMark = {
     type: 'bold' | 'italic' | 'link';
     attrs?: {
@@ -55,6 +116,7 @@ const presentationAttributes = new Set([
     'originalName',
     'mimeType',
     'fileSize',
+    'checkpoint',
 ]);
 
 export function canonicalLessonDocument(

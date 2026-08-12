@@ -38,6 +38,7 @@ use Illuminate\Support\Carbon;
  * @property-read Module $module
  * @property-read Collection<int, LessonProgress> $progressRecords
  * @property-read Collection<int, LessonAsset> $assets
+ * @property-read Collection<int, LessonCheckpoint> $checkpoints
  * @property-read Collection<int, MasteryRule> $defaultRemedialRules
  * @property-read Collection<int, RemedialAssignmentLesson> $remedialAssignmentLessons
  */
@@ -82,6 +83,12 @@ class Lesson extends Model
     public function assets(): HasMany
     {
         return $this->hasMany(LessonAsset::class);
+    }
+
+    /** @return HasMany<LessonCheckpoint, $this> */
+    public function checkpoints(): HasMany
+    {
+        return $this->hasMany(LessonCheckpoint::class);
     }
 
     /** @return BelongsToMany<MasteryRule, $this> */

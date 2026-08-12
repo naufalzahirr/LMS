@@ -7,9 +7,9 @@ use Illuminate\Console\Command;
 
 class CleanupLessonAuthoringCommand extends Command
 {
-    protected $signature = 'lesson-authoring:cleanup {--asset-hours=24 : Grace period before an unused asset is removed}';
+    protected $signature = 'lesson-authoring:cleanup {--asset-hours=24 : Grace period before unused authoring records are removed}';
 
-    protected $description = 'Remove expired lesson drafts and stale private lesson assets';
+    protected $description = 'Remove expired lesson drafts and stale private lesson authoring records';
 
     public function handle(LessonDraftService $drafts): int
     {
@@ -17,10 +17,11 @@ class CleanupLessonAuthoringCommand extends Command
         $olderThan = now()->subHours($assetHours);
         $expiredDrafts = $drafts->pruneExpiredDrafts();
         $unusedAssets = $drafts->pruneUnusedAssets($olderThan);
+        $unusedCheckpoints = $drafts->pruneUnusedCheckpoints($olderThan);
         $deletedAssets = $drafts->pruneDeletedLessonAssets($olderThan);
 
         $this->components->info(
-            "Removed {$expiredDrafts} expired draft(s), {$unusedAssets} unused asset(s), and {$deletedAssets} deleted-lesson asset(s).",
+            "Removed {$expiredDrafts} expired draft(s), {$unusedAssets} unused asset(s), {$unusedCheckpoints} unused checkpoint(s), and {$deletedAssets} deleted-lesson asset(s).",
         );
 
         return self::SUCCESS;

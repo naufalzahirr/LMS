@@ -12,7 +12,7 @@ Supported content is deliberately limited to:
 - bold, italic, and safe HTTP/HTTPS link marks;
 - bullet and numbered lists, block quotes, horizontal dividers, and tables;
 - syntax-highlighted code blocks using `plain`, `html`, `css`, `javascript`, `typescript`, `php`, `sql`, `python`, `cpp`, `java`, `json`, or `bash`;
-- `lessonImage`, `externalVideo`, `callout`, and `lessonFile` custom nodes.
+- `lessonImage`, `externalVideo`, `callout`, `lessonFile`, and `lessonCheckpoint` custom nodes.
 
 `LessonContentService` rejects unknown nodes, marks, and attributes. Asset ownership/type, supported video providers, link schemes, code languages, and callout types are validated again on the server. Text extraction for future indexing uses the same known-node tree and does not interpret markup.
 
@@ -30,7 +30,7 @@ The Create Lesson page begins without a database row. Selecting a module only ma
 
 Admins retain their normal lesson permissions. A Tutor must be assigned to the target course and may access only their own authoring draft. Drafts are omitted from the normal author list and all student hierarchy queries. Student lesson, asset, and preview access is rejected even if an ID is guessed.
 
-Submitting Create validates the complete content document against assets owned by that draft, updates that same Lesson row, applies the selected active/inactive status, and clears all draft metadata atomically. Cancel performs a best-effort immediate discard. Browser closure or network loss is handled by the scheduled cleanup: expired drafts are force-deleted together with their private files. Successful draft uploads extend the expiration.
+Submitting Create validates the complete content document against assets and checkpoints owned by that draft, updates that same Lesson row, applies the selected active/inactive status, and clears all draft metadata atomically. Cancel performs a best-effort immediate discard. Browser closure or network loss is handled by the scheduled cleanup: expired drafts are force-deleted together with their private files and checkpoints. Successful draft uploads and checkpoint changes extend the expiration.
 
 Preview posts the current unsaved JSON to the author-only preview endpoint. The server validates and adds route-derived asset/trusted embed URLs without saving, then the UI renders the result through the same `LessonContentRenderer` used by students. Preview has no enrollment, progress, mastery, or assessment side effects.
 
@@ -55,6 +55,27 @@ Conversion is idempotent: a populated document is never replaced, legacy asset c
 
 ## Product boundaries
 
-Assessment remains a separate measurement domain and is not a lesson node. AssessmentAttempt and mastery decisions remain authoritative and are unchanged by lesson formatting.
+Assessment remains a separate measurement domain and is not a lesson node. AssessmentAttempt, grades, and competency mastery decisions remain authoritative and are unchanged by lesson checkpoints.
 
-A future `interactivePractice` node can be added to the validator, editor schema, and controlled renderer without changing `content_document`. Candidate non-mastery practice types are fill-in-the-blank, multiple choice, multiple select, and true/false. None are implemented in this sprint.
+## Interactive learning checkpoints
+
+Interactive Learning Checkpoints V1 provides formative questions directly inside a rich Lesson. The supported types are multiple choice, multiple select, true/false, and fill in the blank. They do not use Question Banks, formal Questions, Assessments, AssessmentAttempts, scores, or gradebook data.
+
+The canonical lesson document stores only the position and ownership-safe reference:
+
+```json
+{
+    "type": "lessonCheckpoint",
+    "attrs": {
+        "checkpointId": 123
+    }
+}
+```
+
+`lesson_checkpoints` stores the prompt, optional general explanation, public configuration, and a separate hidden `answer_key` JSON value. Option objects use stable UUIDs, so Up/Down reordering cannot change correctness. The server validator accepts a checkpoint node only when its integer ID belongs to the same Lesson and rejects unknown attributes. Authorized author payloads include the answer configuration for editing; Preview uses a read-only payload without the answer key.
+
+The student Lesson payload contains only the checkpoint ID, type, prompt, public option IDs/text, submission URL, attempt count, and mastered state. It never includes correct option IDs, accepted fill answers, or the internal answer key. A class-, enrollment-, lesson-, competency-, and checkpoint-scoped POST endpoint validates the submitted shape and evaluates it on the server. Multiple select uses exact-set comparison. Fill in the blank trims surrounding whitespace and compares case-insensitively against only the alternatives explicitly configured by the author.
+
+Every submission creates a `lesson_checkpoint_attempts` history row tied to the student's Enrollment. Retry is unlimited. Once any attempt is correct, the checkpoint remains mastered even if a later retry is incorrect. Checkpoint state is formative: it does not block the existing Mark complete action and does not alter lesson or competency progress.
+
+Checkpoint creation during a new Lesson uses the existing private draft as its parent. Finalizing the draft preserves the same Lesson and checkpoint IDs. Discarding or expiring a draft deletes its checkpoints and attempts through their relationships. Saving a lesson after removing a checkpoint node deletes the unreferenced checkpoint; the scheduled authoring cleanup also removes stale unreferenced checkpoint records left by an interrupted edit.

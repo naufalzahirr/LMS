@@ -43,6 +43,7 @@ class LessonDraftAuthoringTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('admin/lessons/Create')
                 ->where('assetUploadUrl', null)
+                ->where('checkpointUrl', null)
                 ->where('previewUrl', null)
                 ->where('draftEnsureUrl', route('admin.lesson-drafts.store')));
 
@@ -56,6 +57,7 @@ class LessonDraftAuthoringTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('admin/lessons/Edit')
                 ->where('assetUploadUrl', route('admin.lesson-assets.store', $lesson))
+                ->where('checkpointUrl', route('admin.lesson-checkpoints.store', $lesson))
                 ->where('previewUrl', route('admin.lessons.preview', $lesson))
                 ->where('draftEnsureUrl', null));
     }

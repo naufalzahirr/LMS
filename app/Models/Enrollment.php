@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property-read User $student
  * @property-read Collection<int, LessonProgress> $lessonProgress
  * @property-read Collection<int, AssessmentAttempt> $assessmentAttempts
+ * @property-read Collection<int, LessonCheckpointAttempt> $lessonCheckpointAttempts
  * @property-read Collection<int, StudentCompetencyProgress> $competencyProgress
  * @property-read Collection<int, RemedialAssignment> $remedialAssignments
  */
@@ -62,6 +63,12 @@ class Enrollment extends Model
     public function assessmentAttempts(): HasMany
     {
         return $this->hasMany(AssessmentAttempt::class);
+    }
+
+    /** @return HasMany<LessonCheckpointAttempt, $this> */
+    public function lessonCheckpointAttempts(): HasMany
+    {
+        return $this->hasMany(LessonCheckpointAttempt::class);
     }
 
     /** @return HasMany<StudentCompetencyProgress, $this> */

@@ -1,5 +1,11 @@
 # Post-V1 roadmap
 
+## In progress
+
+- Interactive Learning Checkpoints V1: implemented with four formative inline question types, server-side answer evaluation, attempt history, persistent mastery state, and draft-backed authoring independent from formal Assessments.
+
+## Candidate future work
+
 These are candidate ideas for V1.1 or V2. They are not commitments and none are implemented in V1.
 
 - Certificates with verifiable completion records
@@ -16,6 +22,6 @@ These are candidate ideas for V1.1 or V2. They are not commitments and none are 
 - Deeper observability dashboards, tracing, and service-level objectives
 - Localization and broader accessibility testing with assistive-technology users
 - Disaster-recovery automation across regions
-- Optional non-mastery inline practice nodes in rich lessons (`fill_in_blank`, `multiple_choice`, `multiple_select`, and `true_false`), kept separate from Assessment and mastery scoring
+- Optional future checkpoint extensions such as richer feedback or aggregate teacher analytics, subject to separate product approval
 
 Before planning or implementation, each candidate requires product approval, threat modeling, authorization tests, data-migration planning, operational documentation, and MySQL integration coverage.

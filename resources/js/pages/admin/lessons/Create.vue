@@ -96,6 +96,7 @@ defineOptions({
                         :errors="errors"
                         :content-document="contentDocument"
                         :asset-upload-url="assetUploadUrl"
+                        :checkpoint-url="checkpointUrl"
                         :preview-url="previewUrl"
                         :draft-ensure-url="draftEnsureUrl"
                         @authoring-busy="authoringBusy = $event"

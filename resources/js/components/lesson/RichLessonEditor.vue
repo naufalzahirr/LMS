@@ -2,6 +2,7 @@
 import {
     Bold,
     Code2,
+    CircleHelp,
     Heading1,
     Heading2,
     Heading3,
@@ -30,6 +31,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import { common, createLowlight } from 'lowlight';
 import { computed, ref, watch } from 'vue';
+import LessonCheckpointDialog from '@/components/lesson/dialogs/LessonCheckpointDialog.vue';
 import LessonImageDialog from '@/components/lesson/dialogs/LessonImageDialog.vue';
 import type { LessonImageDialogValue } from '@/components/lesson/dialogs/LessonImageDialog.vue';
 import LessonLinkDialog from '@/components/lesson/dialogs/LessonLinkDialog.vue';
@@ -39,13 +41,19 @@ import LessonVideoDialog from '@/components/lesson/dialogs/LessonVideoDialog.vue
 import {
     ExternalVideo,
     LessonCallout,
+    LessonCheckpoint,
     LessonFile,
     LessonImage,
 } from '@/lib/lessonEditorExtensions';
-import type { EnsureLessonAssetUpload } from '@/types/lesson-authoring';
+import type {
+    EnsureLessonAssetUpload,
+    EnsureLessonCheckpointAuthoring,
+} from '@/types/lesson-authoring';
 import { canonicalLessonDocument } from '@/types/lesson-content';
 import type {
     LessonCalloutType,
+    LessonCheckpointAuthorInput,
+    LessonCheckpointAuthorPayload,
     LessonCodeLanguage,
     LessonDocument,
     UploadedLessonAsset,
@@ -54,8 +62,10 @@ import type {
 const props = defineProps<{
     modelValue: LessonDocument;
     assetUploadUrl: string | null;
+    checkpointUrl: string | null;
     canPrepareAssetUpload?: boolean;
     ensureAssetUploadUrl?: EnsureLessonAssetUpload;
+    ensureCheckpointUrl?: EnsureLessonCheckpointAuthoring;
 }>();
 
 const emit = defineEmits<{
@@ -143,6 +153,13 @@ const resourceOriginalName = ref('');
 const resourceMimeType = ref('');
 const resourceFileSize = ref(0);
 
+const checkpointDialogOpen = ref(false);
+const checkpointEditing = ref(false);
+const checkpointSelectionPosition = ref<number | null>(null);
+const checkpointInsertionPosition = ref<number | null>(null);
+const checkpointInitial = ref<LessonCheckpointAuthorPayload | null>(null);
+const checkpointSaving = ref(false);
+
 const editor = useEditor({
     content: props.modelValue,
     extensions: [
@@ -172,6 +189,7 @@ const editor = useEditor({
         ExternalVideo,
         LessonCallout,
         LessonFile,
+        LessonCheckpoint,
     ],
     editorProps: {
         attributes: {
@@ -196,6 +214,9 @@ const editor = useEditor({
 
 const assetControlsDisabled = computed(
     () => uploading.value || preparingAssetEndpoint.value,
+);
+const checkpointControlsDisabled = computed(
+    () => checkpointSaving.value || preparingAssetEndpoint.value,
 );
 
 watch(
@@ -571,6 +592,134 @@ async function saveResource(value: LessonResourceDialogValue): Promise<void> {
     }
 
     resourceDialogOpen.value = false;
+}
+
+async function openCheckpointDialog(): Promise<void> {
+    toolbarError.value = '';
+    checkpointSelectionPosition.value =
+        selectedNodePosition('lessonCheckpoint');
+    checkpointEditing.value = checkpointSelectionPosition.value !== null;
+    checkpointInsertionPosition.value = checkpointEditing.value
+        ? null
+        : currentBlockInsertionPosition();
+
+    if (!(await resolveCheckpointUrl())) {
+        return;
+    }
+
+    const attrs = nodeAttributesAt(
+        'lessonCheckpoint',
+        checkpointSelectionPosition.value,
+    );
+    checkpointInitial.value = isAuthorCheckpoint(attrs.checkpoint)
+        ? attrs.checkpoint
+        : null;
+
+    if (checkpointEditing.value && !checkpointInitial.value) {
+        toolbarError.value =
+            'This checkpoint can no longer be edited. Reload the lesson and try again.';
+
+        return;
+    }
+
+    dialogError.value = '';
+    checkpointDialogOpen.value = true;
+}
+
+async function saveCheckpoint(
+    value: LessonCheckpointAuthorInput,
+): Promise<void> {
+    const createUrl = await resolveCheckpointUrl();
+    const url = checkpointEditing.value
+        ? checkpointInitial.value?.update_url
+        : createUrl;
+
+    if (!url) {
+        dialogError.value = 'The checkpoint authoring endpoint is unavailable.';
+
+        return;
+    }
+
+    checkpointSaving.value = true;
+    dialogError.value = '';
+
+    try {
+        const response = await fetch(url, {
+            method: checkpointEditing.value ? 'PATCH' : 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            body: JSON.stringify(value),
+            credentials: 'same-origin',
+        });
+        const payload = (await response.json()) as {
+            checkpoint?: LessonCheckpointAuthorPayload;
+            message?: string;
+            errors?: Record<string, string[]>;
+        };
+
+        if (!response.ok || !payload.checkpoint) {
+            dialogError.value = responseError(
+                payload,
+                'The checkpoint could not be saved.',
+            );
+
+            return;
+        }
+
+        const attrs = {
+            checkpointId: payload.checkpoint.id,
+            checkpoint: payload.checkpoint,
+        };
+
+        if (checkpointEditing.value) {
+            if (
+                !restoreNodeSelection(
+                    'lessonCheckpoint',
+                    checkpointSelectionPosition.value,
+                )
+            ) {
+                dialogError.value =
+                    'The selected checkpoint changed. Select it again before editing.';
+
+                return;
+            }
+
+            editor.value
+                ?.chain()
+                .focus()
+                .updateAttributes('lessonCheckpoint', attrs)
+                .run();
+        } else {
+            insertBlockAt(checkpointInsertionPosition.value, {
+                type: 'lessonCheckpoint',
+                attrs,
+            });
+        }
+
+        checkpointInitial.value = payload.checkpoint;
+        checkpointDialogOpen.value = false;
+    } catch {
+        dialogError.value =
+            'The checkpoint could not be saved. Check your connection and try again.';
+    } finally {
+        checkpointSaving.value = false;
+    }
+}
+
+function removeCheckpoint(): void {
+    if (
+        restoreNodeSelection(
+            'lessonCheckpoint',
+            checkpointSelectionPosition.value,
+        )
+    ) {
+        editor.value?.chain().focus().deleteSelection().run();
+    }
+
+    checkpointDialogOpen.value = false;
 }
 
 function insertCode(): void {
@@ -1009,6 +1158,39 @@ async function resolveAssetUploadUrl(): Promise<string | null> {
     }
 }
 
+async function resolveCheckpointUrl(): Promise<string | null> {
+    if (props.checkpointUrl) {
+        return props.checkpointUrl;
+    }
+
+    if (!props.ensureCheckpointUrl || !props.canPrepareAssetUpload) {
+        toolbarError.value =
+            'Select a module before inserting an interactive checkpoint.';
+
+        return null;
+    }
+
+    preparingAssetEndpoint.value = true;
+    toolbarError.value = '';
+
+    try {
+        const url = await props.ensureCheckpointUrl();
+
+        if (!url) {
+            toolbarError.value = 'The private lesson draft is not ready yet.';
+        }
+
+        return url;
+    } catch {
+        toolbarError.value =
+            'The private lesson draft could not be prepared. Try again.';
+
+        return null;
+    } finally {
+        preparingAssetEndpoint.value = false;
+    }
+}
+
 function responseError(
     payload: { message?: string; errors?: Record<string, string[]> } | null,
     fallback: string,
@@ -1052,6 +1234,17 @@ function isImageSize(
     value: unknown,
 ): value is 'small' | 'medium' | 'large' | 'full' {
     return ['small', 'medium', 'large', 'full'].includes(String(value));
+}
+
+function isAuthorCheckpoint(
+    value: unknown,
+): value is LessonCheckpointAuthorPayload {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        typeof (value as { id?: unknown }).id === 'number' &&
+        typeof (value as { update_url?: unknown }).update_url === 'string'
+    );
 }
 </script>
 
@@ -1218,6 +1411,23 @@ function isImageSize(
                 <Upload />
                 {{ editor?.isActive('lessonFile') ? 'Edit PDF' : 'PDF' }}
             </button>
+            <button
+                type="button"
+                class="editor-button-with-label"
+                :class="{
+                    'editor-button-active':
+                        editor?.isActive('lessonCheckpoint'),
+                }"
+                :disabled="checkpointControlsDisabled"
+                @click="openCheckpointDialog"
+            >
+                <CircleHelp />
+                {{
+                    editor?.isActive('lessonCheckpoint')
+                        ? 'Edit checkpoint'
+                        : 'Checkpoint'
+                }}
+            </button>
             <span class="editor-separator" />
             <select
                 v-model="selectedLanguage"
@@ -1345,6 +1555,16 @@ function isImageSize(
             :server-error="dialogError"
             @update:open="resourceDialogOpen = $event"
             @save="saveResource"
+        />
+        <LessonCheckpointDialog
+            :open="checkpointDialogOpen"
+            :editing="checkpointEditing"
+            :initial="checkpointInitial"
+            :busy="checkpointSaving"
+            :server-error="dialogError"
+            @update:open="checkpointDialogOpen = $event"
+            @save="saveCheckpoint"
+            @remove="removeCheckpoint"
         />
     </div>
 </template>

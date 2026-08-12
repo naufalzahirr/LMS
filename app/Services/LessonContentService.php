@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\LessonAssetType;
 use App\Models\Lesson;
 use App\Models\LessonAsset;
+use App\Models\LessonCheckpoint;
 use Closure;
 use Illuminate\Validation\ValidationException;
 
@@ -29,7 +30,10 @@ final class LessonContentService
     /** @var list<string> */
     public const CALLOUT_TYPES = ['info', 'tip', 'warning', 'important'];
 
-    public function __construct(private readonly LessonVideoEmbedService $videoEmbed) {}
+    public function __construct(
+        private readonly LessonVideoEmbedService $videoEmbed,
+        private readonly LessonCheckpointService $checkpoints,
+    ) {}
 
     /** @return array{type: string, content: array<int, mixed>} */
     public function emptyDocument(): array
@@ -63,7 +67,7 @@ final class LessonContentService
         $topLevelTypes = [
             'paragraph', 'heading', 'bulletList', 'orderedList', 'blockquote',
             'table', 'horizontalRule', 'codeBlock', 'lessonImage', 'lessonFile',
-            'externalVideo', 'callout',
+            'externalVideo', 'callout', 'lessonCheckpoint',
         ];
 
         return [
@@ -88,7 +92,47 @@ final class LessonContentService
     {
         $document = $lesson->content_document ?? $this->emptyDocument();
 
-        return $this->present($lesson, $this->normalize($lesson, $document), $assetUrls);
+        return $this->present(
+            $lesson,
+            $this->normalize($lesson, $document),
+            $assetUrls,
+            fn (LessonCheckpoint $checkpoint): array => $this->checkpoints->previewPayload($checkpoint),
+        );
+    }
+
+    /**
+     * Add answer-key metadata for an authorized lesson editor only.
+     *
+     * @param  Closure(LessonAsset): array{url: string, downloadUrl: string}  $assetUrls
+     * @return array<string, mixed>
+     */
+    public function forAuthoring(Lesson $lesson, Closure $assetUrls): array
+    {
+        $document = $lesson->content_document ?? $this->emptyDocument();
+
+        return $this->present(
+            $lesson,
+            $this->normalize($lesson, $document),
+            $assetUrls,
+            fn (LessonCheckpoint $checkpoint): array => $this->checkpoints->authorPayload($checkpoint),
+        );
+    }
+
+    /**
+     * @param  Closure(LessonAsset): array{url: string, downloadUrl: string}  $assetUrls
+     * @param  Closure(LessonCheckpoint): array<string, mixed>  $checkpointPayload
+     * @return array<string, mixed>
+     */
+    public function forStudent(Lesson $lesson, Closure $assetUrls, Closure $checkpointPayload): array
+    {
+        $document = $lesson->content_document ?? $this->emptyDocument();
+
+        return $this->present(
+            $lesson,
+            $this->normalize($lesson, $document),
+            $assetUrls,
+            $checkpointPayload,
+        );
     }
 
     /**
@@ -100,7 +144,12 @@ final class LessonContentService
      */
     public function forPreview(Lesson $lesson, array $document, Closure $assetUrls): array
     {
-        return $this->present($lesson, $this->normalize($lesson, $document), $assetUrls);
+        return $this->present(
+            $lesson,
+            $this->normalize($lesson, $document),
+            $assetUrls,
+            fn (LessonCheckpoint $checkpoint): array => $this->checkpoints->previewPayload($checkpoint),
+        );
     }
 
     /**
@@ -108,9 +157,13 @@ final class LessonContentService
      * @param  Closure(LessonAsset): array{url: string, downloadUrl: string}  $assetUrls
      * @return array<string, mixed>
      */
-    private function present(Lesson $lesson, array $normalized, Closure $assetUrls): array
-    {
-        return $this->mapNodes($normalized, function (array $node) use ($lesson, $assetUrls): array {
+    private function present(
+        Lesson $lesson,
+        array $normalized,
+        Closure $assetUrls,
+        Closure $checkpointPayload,
+    ): array {
+        return $this->mapNodes($normalized, function (array $node) use ($lesson, $assetUrls, $checkpointPayload): array {
             $attrs = is_array($node['attrs'] ?? null) ? $node['attrs'] : [];
 
             if (in_array($node['type'], ['lessonImage', 'lessonFile'], true)) {
@@ -133,6 +186,14 @@ final class LessonContentService
                 }
 
                 $node['attrs'] = [...$attrs, 'embedUrl' => $video['embed_url']];
+            }
+
+            if ($node['type'] === 'lessonCheckpoint') {
+                $checkpoint = $lesson->checkpoints()->findOrFail((int) $attrs['checkpointId']);
+                $node['attrs'] = [
+                    'checkpointId' => $checkpoint->id,
+                    'checkpoint' => $checkpointPayload($checkpoint),
+                ];
             }
 
             return $node;
@@ -186,6 +247,29 @@ final class LessonContentService
         return array_values(array_unique($ids));
     }
 
+    /** @param array<string, mixed>|null $document
+     * @return list<int>
+     */
+    public function referencedCheckpointIds(?array $document): array
+    {
+        if ($document === null) {
+            return [];
+        }
+
+        $ids = [];
+        $this->walk($document, function (array $node) use (&$ids): void {
+            if (($node['type'] ?? null) === 'lessonCheckpoint') {
+                $id = $node['attrs']['checkpointId'] ?? null;
+
+                if (is_int($id)) {
+                    $ids[] = $id;
+                }
+            }
+        });
+
+        return array_values(array_unique($ids));
+    }
+
     /** @return array<string, mixed> */
     private function normalizeBlock(Lesson $lesson, mixed $node): array
     {
@@ -209,6 +293,7 @@ final class LessonContentService
             'lessonFile' => $this->fileNode($lesson, $node),
             'externalVideo' => $this->videoNode($node),
             'callout' => $this->calloutNode($lesson, $node),
+            'lessonCheckpoint' => $this->checkpointNode($lesson, $node),
             default => $this->invalid("Unsupported lesson node [{$node['type']}]."),
         };
     }
@@ -493,6 +578,36 @@ final class LessonContentService
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $node
+     * @return array{type: string, attrs: array{checkpointId: int}}
+     */
+    private function checkpointNode(Lesson $lesson, array $node): array
+    {
+        $this->onlyKeys($node, ['type', 'attrs']);
+        $attrs = $this->attributes($node, ['checkpointId']);
+        $id = $attrs['checkpointId'] ?? null;
+
+        if (! is_int($id)) {
+            $this->invalid('Lesson checkpoint references must use an integer ID.');
+        }
+
+        $checkpoint = LessonCheckpoint::query()->find($id);
+
+        if (! $checkpoint instanceof LessonCheckpoint) {
+            $this->invalid('The referenced lesson checkpoint does not exist.');
+        }
+
+        if ($checkpoint->lesson_id !== $lesson->id) {
+            $this->invalid('The referenced checkpoint belongs to another lesson.');
+        }
+
+        return [
+            'type' => 'lessonCheckpoint',
+            'attrs' => ['checkpointId' => $checkpoint->id],
+        ];
     }
 
     /**

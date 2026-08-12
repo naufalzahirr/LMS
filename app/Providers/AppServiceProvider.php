@@ -44,6 +44,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('assessment-submit', fn (Request $request) => Limit::perMinute(10)->by(
             $this->rateLimitKey($request, 'attempt'),
         ));
+
+        RateLimiter::for('lesson-checkpoint', fn (Request $request) => Limit::perMinute(60)->by(
+            $this->rateLimitKey($request, 'checkpoint'),
+        ));
     }
 
     private function rateLimitKey(Request $request, string $parameter): string

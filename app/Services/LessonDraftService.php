@@ -133,6 +133,30 @@ final class LessonDraftService
         return $count;
     }
 
+    public function pruneUnusedCheckpoints(CarbonInterface $olderThan): int
+    {
+        $count = 0;
+
+        Lesson::query()
+            ->where('is_authoring_draft', false)
+            ->where('updated_at', '<=', $olderThan)
+            ->whereNull('deleted_at')
+            ->whereHas('checkpoints', fn ($query) => $query->where('created_at', '<=', $olderThan))
+            ->orderBy('id')
+            ->eachById(function (Lesson $lesson) use (&$count, $olderThan): void {
+                $referenced = $this->content->referencedCheckpointIds($lesson->content_document);
+                $query = $lesson->checkpoints()->where('created_at', '<=', $olderThan);
+
+                if ($referenced !== []) {
+                    $query->whereNotIn('id', $referenced);
+                }
+
+                $count += $query->delete();
+            });
+
+        return $count;
+    }
+
     public function pruneDeletedLessonAssets(CarbonInterface $olderThan): int
     {
         $count = 0;
@@ -162,6 +186,7 @@ final class LessonDraftService
             }
 
             $locked->assets()->delete();
+            $locked->checkpoints()->delete();
             $locked->forceDelete();
 
             return true;
