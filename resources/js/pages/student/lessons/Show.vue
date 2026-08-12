@@ -16,10 +16,16 @@ import {
     Trophy,
     X,
 } from '@lucide/vue';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import LessonContentRenderer from '@/components/lesson/LessonContentRenderer.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    initialLessonCheckpointMastery,
+    summarizeLessonCheckpointMastery,
+    synchronizeLessonCheckpointMastery,
+} from '@/lib/lessonCheckpointMastery';
+import type { LessonCheckpointMasteryUpdate } from '@/lib/lessonCheckpointMastery';
 import { show as classShow } from '@/routes/student/classes';
 import { update as updateProgress } from '@/routes/student/lesson-progress';
 import type { LessonProgressStatus, PlayerCompetency } from '@/types/learning';
@@ -58,6 +64,19 @@ const props = defineProps<{
 
 const mobileNavigationOpen = ref(false);
 const navigationCollapsed = ref(false);
+const checkpointMasteryState = ref(
+    initialLessonCheckpointMastery(props.lesson.content_document),
+);
+const checkpointSummary = computed(() =>
+    summarizeLessonCheckpointMastery(checkpointMasteryState.value),
+);
+
+watch(
+    () => [props.lesson.id, props.lesson.content_document] as const,
+    ([, document]) => {
+        checkpointMasteryState.value = initialLessonCheckpointMastery(document);
+    },
+);
 
 defineOptions({
     layout: { breadcrumbs: [] },
@@ -68,6 +87,15 @@ function setProgress(status: 'in_progress' | 'completed'): void {
         updateProgress.url([props.learningClass.id, props.lesson.id]),
         { status },
         { preserveScroll: true },
+    );
+}
+
+function synchronizeCheckpointMastery(
+    update: LessonCheckpointMasteryUpdate,
+): void {
+    checkpointMasteryState.value = synchronizeLessonCheckpointMastery(
+        checkpointMasteryState.value,
+        update,
     );
 }
 </script>
@@ -270,21 +298,22 @@ function setProgress(status: 'in_progress' | 'completed'): void {
                             <CheckCircle2 class="size-3.5" /> Completed
                         </Badge>
                         <Badge
-                            v-if="lesson.checkpoint_summary.total > 0"
+                            v-if="checkpointSummary.total > 0"
                             variant="outline"
                             class="gap-1"
                         >
                             <CircleHelp class="size-3.5" />
-                            {{ lesson.checkpoint_summary.mastered }} /
-                            {{ lesson.checkpoint_summary.total }} checkpoints
-                            correct
+                            {{ checkpointSummary.mastered }} /
+                            {{ checkpointSummary.total }} checkpoints correct
                         </Badge>
                     </div>
                 </header>
 
                 <LessonContentRenderer
                     :document="lesson.content_document"
+                    :checkpoint-mastery-state="checkpointMasteryState"
                     class="py-7 sm:py-10"
+                    @checkpoint-mastery-change="synchronizeCheckpointMastery"
                 />
 
                 <footer class="border-t pt-6 pb-10">

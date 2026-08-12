@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { CheckCircle2, CircleHelp, RotateCcw, XCircle } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, inject, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { lessonCheckpointMasteryKey } from '@/lib/lessonCheckpointMastery';
 import type {
     LessonCheckpointPayload,
     LessonCheckpointResult,
@@ -23,6 +24,7 @@ const studentState = computed<LessonCheckpointStudentState | null>(() => {
 
     return value && 'interactive' in value && value.interactive ? value : null;
 });
+const masteryContext = inject(lessonCheckpointMasteryKey, null);
 const selectedOption = ref('');
 const selectedOptions = ref<string[]>([]);
 const selectedBoolean = ref<'true' | 'false' | ''>('');
@@ -30,9 +32,17 @@ const fillAnswer = ref('');
 const submitting = ref(false);
 const error = ref('');
 const result = ref<LessonCheckpointResult | null>(null);
-const mastered = computed(
-    () => result.value?.mastered ?? studentState.value?.mastered ?? false,
-);
+const mastered = computed(() => {
+    const id = checkpoint.value?.id;
+    const synchronized = id ? masteryContext?.state.value?.[id] : undefined;
+
+    return (
+        synchronized ??
+        result.value?.mastered ??
+        studentState.value?.mastered ??
+        false
+    );
+});
 const attemptCount = computed(
     () => result.value?.attempt_count ?? studentState.value?.attempt_count ?? 0,
 );
@@ -87,6 +97,13 @@ async function submit(): Promise<void> {
         }
 
         result.value = payload;
+
+        if (checkpoint.value) {
+            masteryContext?.update({
+                checkpointId: checkpoint.value.id,
+                mastered: payload.mastered,
+            });
+        }
     } catch {
         error.value =
             'The answer could not be checked. Check your connection and try again.';
