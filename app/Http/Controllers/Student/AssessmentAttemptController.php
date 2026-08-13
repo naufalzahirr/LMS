@@ -28,6 +28,11 @@ class AssessmentAttemptController extends Controller
             return to_route('student.assessment-attempts.result', $attempt);
         }
 
+        // The editable attempt contains security-sensitive, mutable state.
+        // Encrypt its Inertia history entry so a successful submission can
+        // invalidate it for popstate and BFCache restoration.
+        Inertia::encryptHistory();
+
         return Inertia::render('student/assessments/Attempt', [
             'attempt' => $this->payloads->attemptPlayer($attempt),
         ]);
@@ -39,6 +44,11 @@ class AssessmentAttemptController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, 401);
         $this->attempts->submit($user, $attempt);
+        // Inertia revalidates encrypted entries on both popstate and persisted
+        // pageshow. Clearing their key forces a restored attempt page through
+        // this controller, where its server-authoritative status redirects it
+        // to the Result page instead of restoring stale editable state.
+        Inertia::clearHistory();
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Assessment submitted successfully.')]);
 
         return to_route('student.assessment-attempts.result', $attempt);

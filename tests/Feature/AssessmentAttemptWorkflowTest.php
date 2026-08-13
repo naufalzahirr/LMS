@@ -125,6 +125,63 @@ class AssessmentAttemptWorkflowTest extends TestCase
                 ->where('attempt.closes_at', null));
     }
 
+    public function test_submission_invalidates_editable_history_and_submitted_attempt_url_redirects_to_result(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay]);
+        $attempt = app(AssessmentAttemptService::class)->startAttempt(
+            $context['student'],
+            $context['enrollment'],
+            $context['assignment'],
+        );
+
+        $editableResponse = $this->actingAs($context['student'])
+            ->get(route('student.assessment-attempts.show', $attempt))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/assessments/Attempt'));
+        $this->assertTrue($editableResponse->inertiaPage()['encryptHistory'] ?? false);
+
+        $this->post(route('student.assessment-attempts.submit', $attempt))
+            ->assertRedirect(route('student.assessment-attempts.result', $attempt));
+        $this->assertSame(AssessmentAttemptStatus::PendingGrading, $attempt->refresh()->status);
+
+        $resultResponse = $this->get(route('student.assessment-attempts.result', $attempt))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/assessments/Result'));
+        $this->assertTrue($resultResponse->inertiaPage()['clearHistory'] ?? false);
+
+        // This is the server request Inertia performs when Back/popstate or a
+        // persisted pageshow can no longer decrypt the stale attempt entry.
+        $this->get(route('student.assessment-attempts.show', $attempt))
+            ->assertRedirect(route('student.assessment-attempts.result', $attempt));
+    }
+
+    public function test_submitted_attempt_cannot_be_resubmitted_through_the_http_endpoint(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::MultipleChoice]);
+        $attempt = app(AssessmentAttemptService::class)->startAttempt(
+            $context['student'],
+            $context['enrollment'],
+            $context['assignment'],
+        );
+
+        $this->actingAs($context['student'])
+            ->post(route('student.assessment-attempts.submit', $attempt))
+            ->assertRedirect(route('student.assessment-attempts.result', $attempt));
+        $submittedAt = $attempt->refresh()->submitted_at?->toISOString();
+
+        $this->postJson(route('student.assessment-attempts.submit', $attempt))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('attempt');
+
+        $attempt->refresh();
+        $this->assertSame(AssessmentAttemptStatus::Graded, $attempt->status);
+        $this->assertSame($submittedAt, $attempt->submitted_at?->toISOString());
+        $this->get(route('student.assessment-attempts.show', $attempt))
+            ->assertRedirect(route('student.assessment-attempts.result', $attempt));
+    }
+
     public function test_start_requires_an_active_matching_delivery_and_open_window(): void
     {
         $context = $this->makeAssessmentContext([QuestionType::MultipleChoice]);
