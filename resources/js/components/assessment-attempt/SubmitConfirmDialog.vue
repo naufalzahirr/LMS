@@ -9,9 +9,14 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 
-defineProps<{
+const props = defineProps<{
     open: boolean;
     unansweredCount: number;
+    /** True while any answer is pending/saving/queued/failed — never bypassable. */
+    hasUnsavedOrFailedAnswers: boolean;
+    /** True when at least one answer is specifically in a failed state. */
+    hasSaveErrors: boolean;
+    /** True while the actual submit request is in flight. */
     submitting: boolean;
 }>();
 
@@ -20,6 +25,9 @@ const emit = defineEmits<{
     'review-unanswered': [];
     confirm: [];
 }>();
+
+const confirmDisabled = () =>
+    props.submitting || props.hasUnsavedOrFailedAnswers;
 </script>
 
 <template>
@@ -27,7 +35,15 @@ const emit = defineEmits<{
         <DialogContent>
             <DialogHeader>
                 <DialogTitle>Submit this attempt?</DialogTitle>
-                <DialogDescription v-if="unansweredCount > 0">
+                <DialogDescription v-if="hasSaveErrors">
+                    Some answers could not be saved. Retry them before
+                    submitting — this is separate from any unanswered questions,
+                    and cannot be bypassed.
+                </DialogDescription>
+                <DialogDescription v-else-if="hasUnsavedOrFailedAnswers">
+                    Saving your latest answers…
+                </DialogDescription>
+                <DialogDescription v-else-if="unansweredCount > 0">
                     You still have {{ unansweredCount }}
                     {{ unansweredCount === 1 ? 'question' : 'questions' }}
                     unanswered. Answers cannot be changed after you submit.
@@ -45,7 +61,7 @@ const emit = defineEmits<{
                 >
                     Review unanswered
                 </Button>
-                <Button :disabled="submitting" @click="emit('confirm')">
+                <Button :disabled="confirmDisabled()" @click="emit('confirm')">
                     {{
                         unansweredCount > 0 ? 'Submit anyway' : 'Submit attempt'
                     }}

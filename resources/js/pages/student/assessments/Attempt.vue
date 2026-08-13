@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, useHttp } from '@inertiajs/vue3';
 import { ArrowLeft, Send } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -14,11 +14,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+    createAnswerAutosaveCoordinator,
+    hasUnsavedOrFailedAnswers,
+} from '@/lib/answerAutosave';
+import type { AnswerSnapshot, AutosaveState } from '@/lib/answerAutosave';
+import {
     countAnswered,
     isQuestionAnswered,
     unansweredQuestionIds,
 } from '@/lib/assessmentAttempt';
-import type { AnswerSaveState, LocalAnswer } from '@/lib/assessmentAttempt';
+import type { LocalAnswer } from '@/lib/assessmentAttempt';
 import { formatRelativeTime } from '@/lib/utils';
 import type {
     AssessmentPlayer,
@@ -41,13 +46,71 @@ const answers = reactive<Record<number, LocalAnswer>>(
         ]),
     ),
 );
-const answerStatus = reactive<Record<number, AnswerSaveState>>(
+const answerStatus = reactive<Record<number, AutosaveState>>(
     Object.fromEntries(
         props.attempt.questions.map((question) => [question.id, 'idle']),
     ),
 );
+
+function snapshotOf(question: AssessmentPlayerQuestion): AnswerSnapshot {
+    const current = answers[question.id];
+
+    return {
+        answer_text: current.answer_text,
+        answer_boolean: current.answer_boolean,
+        selected_option_ids: [...current.selected_option_ids],
+    };
+}
+
+// One standalone HTTP transport per question. useHttp() never triggers an
+// Inertia page visit or page-prop reload — a plain JSON request/response,
+// with each question's in-flight state fully independent of the others.
+const httpByQuestion = new Map(
+    props.attempt.questions.map((question) => [
+        question.id,
+        useHttp({
+            answer_text: '',
+            answer_boolean: null as boolean | null,
+            selected_option_ids: [] as number[],
+        }),
+    ]),
+);
+
+function performSave(
+    question: AssessmentPlayerQuestion,
+    snapshot: AnswerSnapshot,
+): Promise<void> {
+    const http = httpByQuestion.get(question.id);
+
+    if (!http) {
+        return Promise.reject(new Error('No transport for this question'));
+    }
+
+    http.answer_text = snapshot.answer_text;
+    http.answer_boolean = snapshot.answer_boolean;
+    http.selected_option_ids = snapshot.selected_option_ids;
+
+    return new Promise((resolve, reject) => {
+        http.patch(question.answer_url, {
+            onSuccess: () => resolve(),
+            onError: () => reject(new Error('The answer failed validation.')),
+        }).catch(() => reject(new Error('The save request failed.')));
+    });
+}
+
+const coordinators = new Map(
+    props.attempt.questions.map((question) => [
+        question.id,
+        createAnswerAutosaveCoordinator(
+            snapshotOf(question),
+            (snapshot) => performSave(question, snapshot),
+            (state) => {
+                answerStatus[question.id] = state;
+            },
+        ),
+    ]),
+);
 const debounceTimers = new Map<number, ReturnType<typeof setTimeout>>();
-const activeSaveCount = ref(0);
 const currentQuestionId = ref<number | null>(
     props.attempt.questions[0]?.id ?? null,
 );
@@ -76,32 +139,16 @@ const progressPercent = computed(() =>
         ? 0
         : Math.round((answeredCount.value / totalQuestions.value) * 100),
 );
+const hasSaveErrors = computed(() =>
+    Object.values(answerStatus).some((state) => state === 'error'),
+);
+const unsavedOrFailed = computed(() => hasUnsavedOrFailedAnswers(answerStatus));
 
-function performSave(question: AssessmentPlayerQuestion): void {
-    answerStatus[question.id] = 'saving';
-    activeSaveCount.value++;
-    router.patch(question.answer_url, answers[question.id], {
-        preserveScroll: true,
-        preserveState: true,
-        onSuccess: () => {
-            answerStatus[question.id] = 'saved';
-        },
-        onError: () => {
-            answerStatus[question.id] = 'error';
-            toast.error(
-                'Unable to save your answer. Check your connection and try again.',
-            );
-        },
-        onFinish: () => {
-            activeSaveCount.value--;
-        },
-    });
+function recordChange(question: AssessmentPlayerQuestion): void {
+    coordinators.get(question.id)?.update(snapshotOf(question));
 }
 
-function scheduleSave(
-    question: AssessmentPlayerQuestion,
-    immediate = false,
-): void {
+function saveNow(question: AssessmentPlayerQuestion): void {
     const existingTimer = debounceTimers.get(question.id);
 
     if (existingTimer) {
@@ -109,34 +156,23 @@ function scheduleSave(
         debounceTimers.delete(question.id);
     }
 
-    if (immediate) {
-        performSave(question);
+    coordinators.get(question.id)?.flush();
+}
 
-        return;
+function scheduleDebouncedSave(question: AssessmentPlayerQuestion): void {
+    const existingTimer = debounceTimers.get(question.id);
+
+    if (existingTimer) {
+        clearTimeout(existingTimer);
     }
 
     debounceTimers.set(
         question.id,
         setTimeout(() => {
             debounceTimers.delete(question.id);
-            performSave(question);
+            coordinators.get(question.id)?.flush();
         }, DEBOUNCE_MS),
     );
-}
-
-function flushPendingSaves(): void {
-    for (const [id, timer] of debounceTimers) {
-        clearTimeout(timer);
-        debounceTimers.delete(id);
-
-        const question = props.attempt.questions.find(
-            (candidate) => candidate.id === id,
-        );
-
-        if (question) {
-            performSave(question);
-        }
-    }
 }
 
 function chooseSingle(
@@ -144,7 +180,8 @@ function chooseSingle(
     optionId: number,
 ): void {
     answers[question.id].selected_option_ids = [optionId];
-    scheduleSave(question, true);
+    recordChange(question);
+    saveNow(question);
 }
 
 function toggleMultiple(
@@ -155,7 +192,8 @@ function toggleMultiple(
     answers[question.id].selected_option_ids = selected.includes(optionId)
         ? selected.filter((id) => id !== optionId)
         : [...selected, optionId];
-    scheduleSave(question, true);
+    recordChange(question);
+    saveNow(question);
 }
 
 function chooseBoolean(
@@ -163,7 +201,28 @@ function chooseBoolean(
     value: boolean,
 ): void {
     answers[question.id].answer_boolean = value;
-    scheduleSave(question, true);
+    recordChange(question);
+    saveNow(question);
+}
+
+function onTextInput(question: AssessmentPlayerQuestion): void {
+    recordChange(question);
+    scheduleDebouncedSave(question);
+}
+
+function retrySave(question: AssessmentPlayerQuestion): void {
+    coordinators.get(question.id)?.retry();
+}
+
+function flushAllPendingSaves(): void {
+    for (const [id, timer] of debounceTimers) {
+        clearTimeout(timer);
+        debounceTimers.delete(id);
+    }
+
+    for (const coordinator of coordinators.values()) {
+        coordinator.flush();
+    }
 }
 
 function scrollToQuestion(id: number): void {
@@ -189,7 +248,10 @@ function handleFocusIn(event: FocusEvent): void {
 }
 
 function openSubmitDialog(): void {
-    flushPendingSaves();
+    // Every pending debounce is fired immediately so the dialog reflects true
+    // save state as soon as it opens — the confirm action itself additionally
+    // stays disabled the whole time any answer is not yet confirmed saved.
+    flushAllPendingSaves();
     showSubmitDialog.value = true;
 }
 
@@ -206,6 +268,9 @@ function reviewUnanswered(): void {
 }
 
 function confirmSubmit(): void {
+    // The dialog's confirm button is disabled while unsavedOrFailed is true,
+    // so by the time this runs every autosave has already been confirmed
+    // persisted — there is no save left that could arrive after this request.
     isSubmitting.value = true;
     router.post(
         props.attempt.submit_url,
@@ -362,15 +427,18 @@ function confirmSubmit(): void {
                         v-model="answers[question.id].answer_text"
                         rows="7"
                         placeholder="Write your answer"
-                        @input="scheduleSave(question)"
+                        @input="onTextInput(question)"
                     />
                     <Input
                         v-else
                         v-model="answers[question.id].answer_text"
                         placeholder="Enter your answer"
-                        @input="scheduleSave(question)"
+                        @input="onTextInput(question)"
                     />
-                    <AnswerStatusBadge :state="answerStatus[question.id]" />
+                    <AnswerStatusBadge
+                        :state="answerStatus[question.id]"
+                        @retry="retrySave(question)"
+                    />
                 </CardContent>
             </Card>
         </div>
@@ -384,7 +452,9 @@ function confirmSubmit(): void {
         <SubmitConfirmDialog
             v-model:open="showSubmitDialog"
             :unanswered-count="totalQuestions - answeredCount"
-            :submitting="isSubmitting || activeSaveCount > 0"
+            :has-unsaved-or-failed-answers="unsavedOrFailed"
+            :has-save-errors="hasSaveErrors"
+            :submitting="isSubmitting"
             @review-unanswered="reviewUnanswered"
             @confirm="confirmSubmit"
         />
