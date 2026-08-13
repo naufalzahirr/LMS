@@ -38,10 +38,10 @@ class ClassAssessmentService
             return $learningClass->assessmentAssignments()->create($data);
         });
 
-        if ($assignment->status === ClassAssessmentStatus::Active
-            && ($assignment->opens_at === null || $assignment->opens_at->isPast())) {
-            LearningClassAssessmentActivated::dispatch($assignment);
-        }
+        // Whether this is immediately visible to students is decided entirely by
+        // AssessmentAvailabilityNotifier (via the listener) — it re-checks the full
+        // eligibility rule set itself, so it's safe to always dispatch here.
+        LearningClassAssessmentActivated::dispatch($assignment);
 
         return $assignment;
     }
@@ -49,7 +49,7 @@ class ClassAssessmentService
     /** @param array{opens_at: string|null, closes_at: string|null, max_attempts: int, status: ClassAssessmentStatus, feedback_mode: AssessmentFeedbackMode} $data */
     public function update(LearningClassAssessment $assignment, array $data): LearningClassAssessment
     {
-        return DB::transaction(function () use ($assignment, $data): LearningClassAssessment {
+        $assignment = DB::transaction(function () use ($assignment, $data): LearningClassAssessment {
             $this->ensureValidAttemptLimit($data['max_attempts']);
 
             $highestUsedAttempt = (int) $assignment->attempts()->max('attempt_number');
@@ -65,15 +65,27 @@ class ClassAssessmentService
 
             return $assignment->refresh();
         });
+
+        // A manual edit (e.g. opens_at moved into the past, or the assignment
+        // reactivated) may newly make this assignment available. The notifier's
+        // own per-student dedup guarantees an already-notified student is never
+        // notified twice, so it's safe to always dispatch here too.
+        LearningClassAssessmentActivated::dispatch($assignment);
+
+        return $assignment;
     }
 
     public function setStatus(LearningClassAssessment $assignment, ClassAssessmentStatus $status): LearningClassAssessment
     {
-        return DB::transaction(function () use ($assignment, $status): LearningClassAssessment {
+        $assignment = DB::transaction(function () use ($assignment, $status): LearningClassAssessment {
             $assignment->update(['status' => $status]);
 
             return $assignment->refresh();
         });
+
+        LearningClassAssessmentActivated::dispatch($assignment);
+
+        return $assignment;
     }
 
     public function unassign(LearningClassAssessment $assignment): void

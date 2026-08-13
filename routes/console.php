@@ -15,3 +15,9 @@ Schedule::command('lesson-authoring:cleanup')
 Schedule::command('notifications:send-deadline-reminders')
     ->hourly()
     ->withoutOverlapping();
+
+// Availability is time-sensitive (a Student should see "available" shortly
+// after opens_at passes), so this runs more often than the deadline reminder.
+Schedule::command('notifications:send-assessment-availability')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();

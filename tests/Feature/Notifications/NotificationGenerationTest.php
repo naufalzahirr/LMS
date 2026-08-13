@@ -127,6 +127,51 @@ class NotificationGenerationTest extends TestCase
         );
     }
 
+    public function test_regrading_an_already_graded_attempt_does_not_duplicate_student_or_parent_notifications(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay]);
+        $parent = $this->userWithAssessmentRole('Parent');
+        ParentStudentRelationship::factory()->create([
+            'parent_id' => $parent->id,
+            'student_id' => $context['student']->id,
+        ]);
+        $unrelatedParent = $this->userWithAssessmentRole('Parent');
+        $attempt = $this->submitPendingAttempt($context);
+        $essay = $attempt->attemptQuestions()->where('question_type', QuestionType::Essay->value)->firstOrFail();
+        $grader = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($grader);
+
+        app(AssessmentGradingService::class)->grade($attempt, $grader, [
+            $this->essayGrade($essay->id, '3.00'),
+        ]);
+
+        $this->assertSame(
+            1,
+            $context['student']->notifications()->where('type', AssessmentGradedNotification::class)->count(),
+        );
+        $this->assertSame(
+            1,
+            $parent->notifications()->where('type', ChildAssessmentGradedNotification::class)->count(),
+        );
+        $this->assertSame(0, $unrelatedParent->notifications()->count());
+
+        // Re-grading an attempt already in the Graded state (e.g. a Tutor
+        // correcting a score) must not send a second "graded" notification.
+        app(AssessmentGradingService::class)->grade($attempt, $grader, [
+            $this->essayGrade($essay->id, '4.00'),
+        ]);
+
+        $this->assertSame(
+            1,
+            $context['student']->notifications()->where('type', AssessmentGradedNotification::class)->count(),
+        );
+        $this->assertSame(
+            1,
+            $parent->notifications()->where('type', ChildAssessmentGradedNotification::class)->count(),
+        );
+        $this->assertSame(0, $unrelatedParent->notifications()->count());
+    }
+
     public function test_remedial_assignment_notifies_student_tutor_and_parent_but_not_unrelated_users(): void
     {
         $context = $this->masteryContext();

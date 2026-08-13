@@ -35,6 +35,10 @@ class AssessmentGradingService
                 ]);
             }
 
+            // The meaningful notification event is the transition INTO Graded, not
+            // every save of an already-graded attempt (e.g. a Tutor correcting a score).
+            $wasAlreadyGraded = $lockedAttempt->status === AssessmentAttemptStatus::Graded;
+
             foreach ($grades as $grade) {
                 $question = AssessmentAttemptQuestion::query()
                     ->whereKey($grade['attempt_question_id'])
@@ -105,7 +109,10 @@ class AssessmentGradingService
                 'graded_at' => now(),
             ]);
             $this->masteryEvaluation->evaluate($lockedAttempt->refresh());
-            AssessmentAttemptGraded::dispatch($lockedAttempt);
+
+            if (! $wasAlreadyGraded) {
+                AssessmentAttemptGraded::dispatch($lockedAttempt);
+            }
 
             return $lockedAttempt->refresh();
         });

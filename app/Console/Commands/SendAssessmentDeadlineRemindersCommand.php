@@ -74,11 +74,15 @@ class SendAssessmentDeadlineRemindersCommand extends Command
 
     private function alreadyReminded(User $student, LearningClassAssessment $assignment): bool
     {
+        // Deduplicate on the specific deadline occurrence, not just the
+        // assignment: if closes_at is later rescheduled, that's a genuinely
+        // new occurrence and deserves its own reminder.
         return DatabaseNotification::query()
             ->where('notifiable_id', $student->id)
             ->where('notifiable_type', User::class)
             ->where('type', AssessmentDeadlineReminderNotification::class)
             ->whereJsonContains('data->entity_id', $assignment->id)
+            ->whereJsonContains('data->deadline_at', $assignment->closes_at->toIso8601String())
             ->exists();
     }
 }

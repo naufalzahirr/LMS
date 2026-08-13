@@ -6,6 +6,7 @@ use App\Enums\QuestionType;
 use App\Notifications\AssessmentDeadlineReminderNotification;
 use App\Services\AssessmentAnswerService;
 use App\Services\AssessmentAttemptService;
+use App\Services\ClassAssessmentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -97,5 +98,71 @@ class NotificationDeadlineReminderTest extends TestCase
         Artisan::call('notifications:send-deadline-reminders');
 
         $this->assertSame(0, $context['student']->notifications()->count());
+    }
+
+    public function test_rescheduling_the_deadline_to_a_new_occurrence_produces_a_second_legitimate_reminder(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::MultipleChoice], [
+            'closes_at' => now()->addHours(5),
+        ]);
+
+        Artisan::call('notifications:send-deadline-reminders');
+
+        $this->assertSame(
+            1,
+            $context['student']->notifications()->where('type', AssessmentDeadlineReminderNotification::class)->count(),
+        );
+
+        app(ClassAssessmentService::class)->update($context['assignment'], [
+            'opens_at' => $context['assignment']->opens_at,
+            'closes_at' => now()->addDays(10),
+            'max_attempts' => $context['assignment']->max_attempts,
+            'status' => $context['assignment']->status,
+            'feedback_mode' => $context['assignment']->feedback_mode,
+        ]);
+
+        Artisan::call('notifications:send-deadline-reminders');
+        $this->assertSame(
+            1,
+            $context['student']->notifications()->where('type', AssessmentDeadlineReminderNotification::class)->count(),
+        );
+
+        $this->travelTo(now()->addDays(9)->addHours(20));
+        Artisan::call('notifications:send-deadline-reminders');
+        Artisan::call('notifications:send-deadline-reminders');
+
+        $this->assertSame(
+            2,
+            $context['student']->notifications()->where('type', AssessmentDeadlineReminderNotification::class)->count(),
+        );
+    }
+
+    public function test_updating_the_assignment_without_changing_the_deadline_still_reminds_once(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::MultipleChoice], [
+            'closes_at' => now()->addHours(5),
+        ]);
+
+        Artisan::call('notifications:send-deadline-reminders');
+
+        $this->assertSame(
+            1,
+            $context['student']->notifications()->where('type', AssessmentDeadlineReminderNotification::class)->count(),
+        );
+
+        app(ClassAssessmentService::class)->update($context['assignment'], [
+            'opens_at' => $context['assignment']->opens_at,
+            'closes_at' => $context['assignment']->closes_at,
+            'max_attempts' => $context['assignment']->max_attempts + 1,
+            'status' => $context['assignment']->status,
+            'feedback_mode' => $context['assignment']->feedback_mode,
+        ]);
+
+        Artisan::call('notifications:send-deadline-reminders');
+
+        $this->assertSame(
+            1,
+            $context['student']->notifications()->where('type', AssessmentDeadlineReminderNotification::class)->count(),
+        );
     }
 }

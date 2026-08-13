@@ -27,6 +27,10 @@ class AssessmentDeadlineReminderNotification extends Notification
             'action_url' => route('student.assessments.show', [$this->assignment->learningClass, $this->assignment]),
             'entity_type' => 'learning_class_assessment',
             'entity_id' => $this->assignment->id,
+            // Identifies which deadline occurrence this reminder is for, so a
+            // rescheduled closes_at is treated as a genuinely new occurrence
+            // rather than being permanently suppressed by entity_id alone.
+            'deadline_at' => $this->assignment->closes_at?->toIso8601String(),
         ];
     }
 }
