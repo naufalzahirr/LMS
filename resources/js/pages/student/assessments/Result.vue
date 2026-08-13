@@ -5,6 +5,7 @@ import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { statusLabel } from '@/lib/assessmentAttempt';
 import type { AssessmentResult } from '@/types/assessment-attempt';
 
 defineProps<{ result: AssessmentResult }>();
@@ -51,7 +52,7 @@ function displayAnswer(value: string | string[] | boolean | null): string {
                 <h2 class="text-xl font-semibold">
                     {{
                         result.status === 'pending_grading'
-                            ? 'Submitted for grading'
+                            ? `Submitted — ${statusLabel(result.status)}`
                             : 'Attempt graded'
                     }}
                 </h2>
@@ -64,10 +65,20 @@ function displayAnswer(value: string | string[] | boolean | null): string {
                         >({{ result.percentage }}%)</span
                     >
                 </p>
-                <p v-else class="text-muted-foreground">
-                    Your objective answers were saved. The final score will
-                    appear after essay grading.
-                </p>
+                <template v-else>
+                    <p
+                        v-if="result.submitted_at"
+                        class="text-sm text-muted-foreground"
+                    >
+                        Submitted {{ result.submitted_at }}
+                    </p>
+                    <p class="text-muted-foreground">
+                        Your objective answers were saved. A Tutor still needs
+                        to review and score the written responses in this
+                        attempt — the final score will appear here once that's
+                        done.
+                    </p>
+                </template>
                 <p
                     v-if="
                         result.status === 'graded' && !result.detailed_feedback

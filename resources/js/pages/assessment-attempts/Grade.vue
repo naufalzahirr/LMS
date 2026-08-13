@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, Save } from '@lucide/vue';
+import {
+    ArrowLeft,
+    ArrowRight,
+    CheckCircle2,
+    Save,
+    XCircle,
+} from '@lucide/vue';
+import { computed } from 'vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { statusLabel } from '@/lib/assessmentAttempt';
+import type { QuestionType } from '@/types/assessment';
 import type { AssessmentAttemptStatus } from '@/types/assessment-attempt';
 
 type Essay = {
@@ -18,6 +27,15 @@ type Essay = {
     points: string;
     manual_score: string | null;
     feedback: string | null;
+};
+type AutoGradedQuestion = {
+    id: number;
+    question_type: QuestionType;
+    prompt: string;
+    points: string;
+    earned: string | null;
+    is_correct: boolean | null;
+    student_answer: string[] | string | boolean | null;
 };
 type GradingAttempt = {
     id: number;
@@ -36,6 +54,9 @@ type GradingAttempt = {
 const props = defineProps<{
     attempt: GradingAttempt;
     essays: Essay[];
+    auto_graded: AutoGradedQuestion[];
+    previousUrl: string | null;
+    nextUrl: string | null;
     submitUrl: string;
     backUrl: string;
 }>();
@@ -46,6 +67,44 @@ const form = useForm({
         feedback: essay.feedback ?? '',
     })),
 });
+// Only essays a Tutor has actually scored are sent — partial grading
+// progress is a legitimate save, not just a "finalize everything" action.
+form.transform((data) => ({
+    ...data,
+    grades: data.grades.filter((grade) => grade.manual_score !== ''),
+}));
+
+const gradedCount = computed(
+    () => props.essays.filter((essay) => essay.manual_score !== null).length,
+);
+const allFilled = computed(() =>
+    form.grades.every((grade) => grade.manual_score !== ''),
+);
+const saveLabel = computed(() => {
+    if (!allFilled.value) {
+        return 'Save grading progress';
+    }
+
+    return props.attempt.status === 'graded'
+        ? 'Save regrade'
+        : 'Finalize grading';
+});
+
+function displayAnswer(answer: string[] | string | boolean | null): string {
+    if (answer === null) {
+        return 'No answer submitted.';
+    }
+
+    if (Array.isArray(answer)) {
+        return answer.length ? answer.join(', ') : 'No answer submitted.';
+    }
+
+    if (typeof answer === 'boolean') {
+        return answer ? 'True' : 'False';
+    }
+
+    return answer;
+}
 
 function submit(): void {
     form.patch(props.submitUrl, { preserveScroll: true });
@@ -62,9 +121,23 @@ function submit(): void {
                 :title="attempt.assessment_title"
                 :description="`${attempt.student} · Attempt ${attempt.attempt_number}`"
             />
-            <Button variant="outline" as-child
-                ><Link :href="backUrl"><ArrowLeft /> Attempts</Link></Button
-            >
+            <div class="flex flex-wrap gap-2">
+                <Button variant="outline" :disabled="!previousUrl" as-child>
+                    <Link v-if="previousUrl" :href="previousUrl"
+                        ><ArrowLeft /> Previous</Link
+                    >
+                    <span v-else><ArrowLeft /> Previous</span>
+                </Button>
+                <Button variant="outline" :disabled="!nextUrl" as-child>
+                    <Link v-if="nextUrl" :href="nextUrl"
+                        >Next <ArrowRight
+                    /></Link>
+                    <span v-else>Next <ArrowRight /></span>
+                </Button>
+                <Button variant="outline" as-child
+                    ><Link :href="backUrl"><ArrowLeft /> Attempts</Link></Button
+                >
+            </div>
         </div>
         <Card>
             <CardContent class="grid gap-4 sm:grid-cols-4">
@@ -78,7 +151,7 @@ function submit(): void {
                 <div>
                     <p class="text-sm text-muted-foreground">Status</p>
                     <Badge class="mt-1" variant="outline">{{
-                        attempt.status.replace('_', ' ')
+                        statusLabel(attempt.status)
                     }}</Badge>
                 </div>
                 <div>
@@ -94,7 +167,41 @@ function submit(): void {
                 </div>
             </CardContent>
         </Card>
+
+        <Card v-if="auto_graded.length">
+            <CardHeader>
+                <CardTitle class="text-base">Auto-graded questions</CardTitle>
+            </CardHeader>
+            <CardContent class="space-y-3">
+                <div
+                    v-for="question in auto_graded"
+                    :key="question.id"
+                    class="flex items-start justify-between gap-3 rounded-lg border p-3"
+                >
+                    <div class="space-y-1">
+                        <p class="text-sm font-medium">{{ question.prompt }}</p>
+                        <p class="text-xs text-muted-foreground">
+                            Answer: {{ displayAnswer(question.student_answer) }}
+                        </p>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <Badge variant="outline"
+                            >{{ question.points }} pts</Badge
+                        >
+                        <CheckCircle2
+                            v-if="question.is_correct"
+                            class="size-5 text-green-600 dark:text-green-500"
+                        />
+                        <XCircle v-else class="size-5 text-destructive" />
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+
         <form class="space-y-4" @submit.prevent="submit">
+            <div v-if="essays.length" class="text-sm text-muted-foreground">
+                {{ gradedCount }} of {{ essays.length }} essays graded
+            </div>
             <Card v-for="(essay, index) in essays" :key="essay.id">
                 <CardHeader
                     ><div class="flex items-start justify-between gap-3">
@@ -123,7 +230,6 @@ function submit(): void {
                                 min="0"
                                 :max="essay.points"
                                 step="0.01"
-                                required
                             /><InputError
                                 :message="
                                     form.errors[`grades.${index}.manual_score`]
@@ -146,13 +252,14 @@ function submit(): void {
                 </CardContent>
             </Card>
             <div class="flex justify-end">
-                <Button type="submit" size="lg" :disabled="form.processing"
-                    ><Save />
-                    {{
-                        attempt.status === 'graded'
-                            ? 'Save regrade'
-                            : 'Finalize grade'
-                    }}</Button
+                <Button
+                    type="submit"
+                    size="lg"
+                    :disabled="
+                        form.processing ||
+                        !form.grades.some((g) => g.manual_score !== '')
+                    "
+                    ><Save /> {{ saveLabel }}</Button
                 >
             </div>
         </form>

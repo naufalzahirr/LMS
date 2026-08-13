@@ -181,6 +181,119 @@ class AssessmentGradingAndFeedbackTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_http_grading_update_accepts_a_partial_grades_array(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay, QuestionType::Essay]);
+        $attempt = $this->submitPendingAttempt($context);
+        $essays = $attempt->attemptQuestions()->where('question_type', QuestionType::Essay->value)->get();
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($tutor);
+
+        $this->actingAs($tutor)
+            ->patch(route('tutor.class-assessment-attempts.update', [$context['class'], $context['assignment'], $attempt]), [
+                'grades' => [$this->grade($essays[0], '2.00')],
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(AssessmentAttemptStatus::PendingGrading, $attempt->refresh()->status);
+        $this->assertDatabaseHas('assessment_answers', [
+            'assessment_attempt_question_id' => $essays[0]->id,
+            'manual_score' => '2.00',
+        ]);
+        $this->assertDatabaseHas('assessment_answers', [
+            'assessment_attempt_question_id' => $essays[1]->id,
+            'manual_score' => null,
+        ]);
+    }
+
+    public function test_grading_payload_exposes_auto_graded_questions_alongside_essays(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::MultipleChoice, QuestionType::Essay]);
+        $attempt = $this->submitPendingAttempt($context);
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($tutor);
+
+        $this->actingAs($tutor)
+            ->get(route('tutor.class-assessment-attempts.edit', [$context['class'], $context['assignment'], $attempt]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('assessment-attempts/Grade')
+                ->has('essays', 1)
+                ->has('auto_graded', 1)
+                ->where('auto_graded.0.question_type', 'multiple_choice')
+                ->where('auto_graded.0.is_correct', true));
+    }
+
+    public function test_queue_pending_count_is_independent_of_the_active_status_filter(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay]);
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($tutor);
+        $grading = app(AssessmentGradingService::class);
+
+        $firstAttempt = $this->submitPendingAttempt($context);
+        $essay = $firstAttempt->attemptQuestions()->firstOrFail();
+        $grading->grade($firstAttempt, $tutor, [$this->grade($essay, '3.00')]);
+        $this->assertSame(AssessmentAttemptStatus::Graded, $firstAttempt->refresh()->status);
+
+        $this->submitPendingAttempt($context);
+
+        $this->actingAs($tutor)
+            ->get(route('tutor.class-assessment-attempts.index', [$context['class'], $context['assignment'], 'status' => 'graded']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('assessment-attempts/Index')
+                ->where('pending_count', 1)
+                ->has('attempts.data', 1));
+    }
+
+    public function test_queue_student_search_filters_by_name_or_email_without_leaking_across_assignments(): void
+    {
+        $matching = $this->makeAssessmentContext([QuestionType::Essay]);
+        $matching['student']->update(['name' => 'Ada Lovelace', 'email' => 'ada@example.test']);
+        $matchingAttempt = $this->submitPendingAttempt($matching);
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $matching['class']->tutors()->attach($tutor);
+
+        $other = $this->makeAssessmentContext([QuestionType::Essay]);
+        $other['student']->update(['name' => 'Ada Byron', 'email' => 'byron@example.test']);
+        $this->submitPendingAttempt($other);
+
+        $this->actingAs($tutor)
+            ->get(route('tutor.class-assessment-attempts.index', [$matching['class'], $matching['assignment'], 'search' => 'Lovelace']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('assessment-attempts/Index')
+                ->has('attempts.data', 1)
+                ->where('attempts.data.0.id', $matchingAttempt->id)
+                ->where('filters.search', 'Lovelace'));
+    }
+
+    public function test_previous_and_next_navigation_respects_the_active_status_filter_and_stays_within_the_assignment(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay], ['max_attempts' => 5]);
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($tutor);
+        $grading = app(AssessmentGradingService::class);
+
+        $pendingOne = $this->submitPendingAttempt($context);
+        $graded = $this->submitPendingAttempt($context);
+        $grading->grade($graded, $tutor, [$this->grade($graded->attemptQuestions()->firstOrFail(), '3.00')]);
+        $pendingTwo = $this->submitPendingAttempt($context);
+
+        // Filtered to pending_grading only, the Graded attempt in between must
+        // be skipped entirely — Next/Previous stay within the filtered subset.
+        // pendingTwo is the most recently submitted, so there is nothing newer
+        // (previous) but pendingOne (older) is reachable via next.
+        $this->actingAs($tutor)
+            ->get(route('tutor.class-assessment-attempts.edit', [
+                $context['class'], $context['assignment'], $pendingTwo, 'status' => 'pending_grading',
+            ]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('assessment-attempts/Grade')
+                ->where('previousUrl', null)
+                ->where('nextUrl', route('tutor.class-assessment-attempts.edit', [
+                    $context['class'], $context['assignment'], $pendingOne, 'status' => 'pending_grading',
+                ])));
+    }
+
     public function test_feedback_modes_release_only_the_allowed_result_detail(): void
     {
         $payloads = app(StudentAssessmentPayloadService::class);

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { statusLabel } from '@/lib/assessmentAttempt';
 import type { ParentClassProgress } from '@/types/parent-progress';
 
 defineProps<{ learningClass: ParentClassProgress }>();
@@ -170,7 +171,7 @@ function label(value: string): string {
                                         v-else-if="
                                             attempt.status === 'pending_grading'
                                         "
-                                        >Waiting for grading</span
+                                        >{{ statusLabel(attempt.status) }}</span
                                     >
                                     <span v-else>In progress</span>
                                 </td>

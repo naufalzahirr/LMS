@@ -5,6 +5,7 @@ import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { statusLabel } from '@/lib/assessmentAttempt';
 import type { StudentAssessmentIntro } from '@/types/assessment-attempt';
 
 const props = defineProps<{
@@ -113,10 +114,22 @@ function start(): void {
                         </p>
                     </div>
                 </div>
-                <Button :disabled="!assessment.can_start" @click="start">
+                <Button v-if="assessment.can_start" @click="start">
                     <RotateCcw v-if="assessment.in_progress_url" />
                     <Play v-else />
                     {{ assessment.start_label }}
+                </Button>
+                <Button
+                    v-else-if="assessment.latest_attempt_result_url"
+                    variant="outline"
+                    as-child
+                >
+                    <Link :href="assessment.latest_attempt_result_url">
+                        View submission
+                    </Link>
+                </Button>
+                <Button v-else disabled>
+                    <Play /> {{ assessment.start_label }}
                 </Button>
             </CardContent>
         </Card>
@@ -146,7 +159,7 @@ function start(): void {
                         </div>
                         <div class="flex items-center gap-3">
                             <Badge variant="outline">{{
-                                attempt.status.replace('_', ' ')
+                                statusLabel(attempt.status)
                             }}</Badge>
                             <span
                                 v-if="attempt.status === 'graded'"

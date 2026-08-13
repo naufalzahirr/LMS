@@ -31,6 +31,7 @@ export type StudentAssessmentCard = {
     start_url: string;
     intro_url: string;
     in_progress_url: string | null;
+    latest_attempt_result_url: string | null;
     mastery: {
         can_start: boolean;
         status: string;
@@ -75,6 +76,7 @@ export type AssessmentPlayer = {
     attempt_number: number;
     status: AssessmentAttemptStatus;
     started_at: string;
+    closes_at: string | null;
     questions: AssessmentPlayerQuestion[];
     submit_url: string;
     back_url: string;

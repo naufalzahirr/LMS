@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowLeft, ClipboardCheck } from '@lucide/vue';
+import { ref } from 'vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -13,6 +15,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { statusLabel } from '@/lib/assessmentAttempt';
 import type { SelectOption } from '@/types/assessment';
 import type {
     AssessmentAttemptStatus,
@@ -20,9 +23,10 @@ import type {
     PaginationLink,
 } from '@/types/assessment-attempt';
 
-defineProps<{
+const props = defineProps<{
     learningClass: { id: number; name: string };
     assignment: { id: number; title: string; competency: string };
+    pending_count: number;
     attempts: {
         data: AssessmentReviewAttempt[];
         links: PaginationLink[];
@@ -30,21 +34,37 @@ defineProps<{
         to: number | null;
         total: number;
     };
-    filters: { status: string };
+    filters: { status: string; search: string };
     statuses: SelectOption<AssessmentAttemptStatus>[];
     backUrl: string;
 }>();
+
+const searchInput = ref(props.filters.search);
+let searchDebounce: ReturnType<typeof setTimeout> | undefined;
 
 function paginationLabel(label: string): string {
     return label.replace('&laquo;', '«').replace('&raquo;', '»');
 }
 
-function filter(status: unknown): void {
+function applyFilters(
+    overrides: { status?: string; search?: string } = {},
+): void {
+    const status = overrides.status ?? props.filters.status;
+    const search = overrides.search ?? searchInput.value;
     router.get(
         window.location.pathname,
-        status ? { status: String(status) } : {},
+        { ...(status ? { status } : {}), ...(search ? { search } : {}) },
         { preserveState: true, replace: true },
     );
+}
+
+function filter(status: unknown): void {
+    applyFilters({ status: status ? String(status) : '' });
+}
+
+function onSearchInput(): void {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => applyFilters(), 400);
 }
 </script>
 
@@ -54,31 +74,49 @@ function filter(status: unknown): void {
         <div
             class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
         >
-            <Heading
-                :title="`${assignment.title} attempts`"
-                :description="`${learningClass.name} · ${assignment.competency}`"
-            />
+            <div class="space-y-2">
+                <Heading
+                    :title="`${assignment.title} attempts`"
+                    :description="`${learningClass.name} · ${assignment.competency}`"
+                />
+                <Badge v-if="pending_count > 0" variant="secondary">
+                    {{ pending_count }}
+                    {{ pending_count === 1 ? 'submission' : 'submissions' }}
+                    need review
+                </Badge>
+            </div>
             <Button variant="outline" as-child
                 ><Link :href="backUrl"><ArrowLeft /> Class</Link></Button
             >
         </div>
-        <div class="grid max-w-xs gap-2">
-            <Label>Status</Label>
-            <Select
-                :model-value="filters.status || 'all'"
-                @update:model-value="filter($event === 'all' ? '' : $event)"
-            >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem
-                        v-for="status in statuses"
-                        :key="status.value"
-                        :value="status.value"
-                        >{{ status.label }}</SelectItem
-                    >
-                </SelectContent>
-            </Select>
+        <div class="flex flex-wrap gap-4">
+            <div class="grid max-w-xs flex-1 gap-2">
+                <Label>Status</Label>
+                <Select
+                    :model-value="filters.status || 'all'"
+                    @update:model-value="filter($event === 'all' ? '' : $event)"
+                >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem
+                            v-for="status in statuses"
+                            :key="status.value"
+                            :value="status.value"
+                            >{{ status.label }}</SelectItem
+                        >
+                    </SelectContent>
+                </Select>
+            </div>
+            <div class="grid max-w-xs flex-1 gap-2">
+                <Label for="student-search">Student</Label>
+                <Input
+                    id="student-search"
+                    v-model="searchInput"
+                    placeholder="Search by name or email"
+                    @input="onSearchInput"
+                />
+            </div>
         </div>
         <Card class="gap-0 overflow-hidden py-0">
             <CardContent class="p-0">
@@ -126,7 +164,7 @@ function filter(status: unknown): void {
                                 </td>
                                 <td class="px-5 py-4">
                                     <Badge variant="outline">{{
-                                        attempt.status.replace('_', ' ')
+                                        statusLabel(attempt.status)
                                     }}</Badge>
                                 </td>
                                 <td class="px-5 py-4 text-right">

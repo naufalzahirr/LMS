@@ -83,6 +83,7 @@ class StudentAssessmentPayloadService
             'attempt_number' => $attempt->attempt_number,
             'status' => $attempt->status->value,
             'started_at' => $attempt->started_at->toDateTimeString(),
+            'closes_at' => $attempt->classAssessment->closes_at?->toDateTimeString(),
             'questions' => $attempt->attemptQuestions->map(
                 fn (AssessmentAttemptQuestion $question): array => [
                     'id' => $question->id,

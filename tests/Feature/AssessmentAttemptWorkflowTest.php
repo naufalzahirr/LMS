@@ -92,6 +92,39 @@ class AssessmentAttemptWorkflowTest extends TestCase
                 ->missing('attempt.questions.0.answer.is_correct'));
     }
 
+    public function test_attempt_player_payload_surfaces_the_assignment_deadline(): void
+    {
+        $withDeadline = $this->makeAssessmentContext([QuestionType::MultipleChoice], [
+            'closes_at' => now()->addDay(),
+        ]);
+        $attempt = app(AssessmentAttemptService::class)->startAttempt(
+            $withDeadline['student'],
+            $withDeadline['enrollment'],
+            $withDeadline['assignment'],
+        );
+
+        $this->actingAs($withDeadline['student'])
+            ->get(route('student.assessment-attempts.show', $attempt))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/assessments/Attempt')
+                ->where('attempt.closes_at', $withDeadline['assignment']->closes_at->toDateTimeString()));
+
+        $withoutDeadline = $this->makeAssessmentContext([QuestionType::MultipleChoice], [
+            'closes_at' => null,
+        ]);
+        $openAttempt = app(AssessmentAttemptService::class)->startAttempt(
+            $withoutDeadline['student'],
+            $withoutDeadline['enrollment'],
+            $withoutDeadline['assignment'],
+        );
+
+        $this->actingAs($withoutDeadline['student'])
+            ->get(route('student.assessment-attempts.show', $openAttempt))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/assessments/Attempt')
+                ->where('attempt.closes_at', null));
+    }
+
     public function test_start_requires_an_active_matching_delivery_and_open_window(): void
     {
         $context = $this->makeAssessmentContext([QuestionType::MultipleChoice]);
