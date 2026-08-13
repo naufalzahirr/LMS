@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\CompetencyController;
 use App\Http\Controllers\Admin\CompetencyPrerequisiteController;
 use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\EnrollmentController;
+use App\Http\Controllers\Admin\LearningAnalyticsController as AdminLearningAnalyticsController;
 use App\Http\Controllers\Admin\LearningClassController;
 use App\Http\Controllers\Admin\LessonAssetController;
 use App\Http\Controllers\Admin\LessonCheckpointController as AdminLessonCheckpointController;
@@ -36,9 +37,11 @@ use App\Http\Controllers\Student\LessonAssetController as StudentLessonAssetCont
 use App\Http\Controllers\Student\LessonCheckpointController as StudentLessonCheckpointController;
 use App\Http\Controllers\Student\LessonController as StudentLessonController;
 use App\Http\Controllers\Student\LessonProgressController as StudentLessonProgressController;
+use App\Http\Controllers\Student\ProgressInsightController as StudentProgressInsightController;
 use App\Http\Controllers\Student\RemedialAssignmentController as StudentRemedialAssignmentController;
 use App\Http\Controllers\Tutor\AssessmentAttemptController as TutorAssessmentAttemptController;
 use App\Http\Controllers\Tutor\ClassProgressReportController as TutorClassProgressReportController;
+use App\Http\Controllers\Tutor\LearningAnalyticsController as TutorLearningAnalyticsController;
 use App\Http\Controllers\Tutor\LearningClassController as TutorLearningClassController;
 use App\Http\Controllers\Tutor\RemedialAssignmentController as TutorRemedialAssignmentController;
 use Illuminate\Support\Facades\Route;
@@ -63,6 +66,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('admin.reports.classes.progress.csv');
     Route::get('admin/reports/classes/{learningClass}', [ProgressReportController::class, 'show'])
         ->name('admin.reports.classes.show');
+    Route::get('admin/analytics', [AdminLearningAnalyticsController::class, 'index'])
+        ->name('admin.analytics.index');
+    Route::get('admin/analytics.csv', [AdminLearningAnalyticsController::class, 'csv'])
+        ->name('admin.analytics.csv');
 
     Route::resource('admin/users', UserController::class)
         ->except('show')
@@ -177,6 +184,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('tutor/classes', [TutorLearningClassController::class, 'index'])
         ->name('tutor.classes.index');
+    Route::get('tutor/analytics', [TutorLearningAnalyticsController::class, 'index'])
+        ->name('tutor.analytics.index');
+    Route::get('tutor/analytics.csv', [TutorLearningAnalyticsController::class, 'csv'])
+        ->name('tutor.analytics.csv');
     Route::get('tutor/classes/{learningClass}', [TutorLearningClassController::class, 'show'])
         ->name('tutor.classes.show');
     Route::get('tutor/reports/classes/{learningClass}', [TutorClassProgressReportController::class, 'show'])
@@ -195,6 +206,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('student/classes', [StudentLearningClassController::class, 'index'])
         ->name('student.classes.index');
+    Route::get('student/progress', StudentProgressInsightController::class)
+        ->name('student.progress.index');
     Route::get('student/classes/{learningClass}', [StudentLearningClassController::class, 'show'])
         ->name('student.classes.show');
     Route::get('student/classes/{learningClass}/assessments', [StudentAssessmentController::class, 'index'])

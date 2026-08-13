@@ -74,6 +74,11 @@ const mainNavItems = computed<NavItem[]>(() => {
             href: studentClassesIndex(),
             icon: BookOpenCheck,
         });
+        items.push({
+            title: 'My Progress',
+            href: '/student/progress',
+            icon: ChartNoAxesCombined,
+        });
     }
 
     if (page.props.auth.permissions.includes('manage-parent-relationships')) {
@@ -86,8 +91,24 @@ const mainNavItems = computed<NavItem[]>(() => {
 
     if (page.props.auth.permissions.includes('view-all-progress')) {
         items.push({
+            title: 'Learning analytics',
+            href: '/admin/analytics',
+            icon: ChartNoAxesCombined,
+        });
+        items.push({
             title: 'Progress reports',
             href: '/admin/reports/progress',
+            icon: NotebookText,
+        });
+    }
+
+    if (
+        page.props.auth.roles.includes('Tutor') &&
+        page.props.auth.permissions.includes('view-class-progress')
+    ) {
+        items.push({
+            title: 'Learning analytics',
+            href: '/tutor/analytics',
             icon: ChartNoAxesCombined,
         });
     }

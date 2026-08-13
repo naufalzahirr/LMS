@@ -76,4 +76,6 @@ See [Deployment](docs/DEPLOYMENT.md), [Operations](docs/OPERATIONS.md), and [Sec
 
 The structured Tiptap Lesson format, private asset policy, authoring draft lifecycle, shared-renderer preview, cleanup behavior, and legacy conversion strategy are documented in [Rich lesson content](docs/LESSON_CONTENT.md).
 
+Current-learning scope, Lesson and Competency denominators, unique Student and remedial semantics, and canonical Assessment-attempt selection are documented in [Learning analytics metric semantics](docs/LEARNING_ANALYTICS.md).
+
 The application health endpoint is `GET /up`.
