@@ -33,6 +33,7 @@ use App\Services\ClassAssessmentService;
 use App\Services\RemedialAssignmentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\Concerns\BuildsAssessmentAttemptContexts;
 use Tests\TestCase;
 
@@ -133,6 +134,40 @@ class NotificationGenerationTest extends TestCase
             0,
             $unrelatedTutor->notifications()->where('type', AssessmentGradedNotification::class)->count(),
         );
+    }
+
+    public function test_student_facing_graded_notification_defensively_rejects_every_wrong_recipient(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay]);
+        $attempt = app(AssessmentAttemptService::class)->startAttempt(
+            $context['student'],
+            $context['enrollment'],
+            $context['assignment'],
+        );
+        $otherStudent = $this->userWithAssessmentRole('Student');
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $parent = $this->userWithAssessmentRole('Parent');
+        $admin = $this->userWithAssessmentRole('Admin');
+
+        Notification::send(
+            [$context['student'], $otherStudent, $tutor, $parent, $admin],
+            new AssessmentGradedNotification($attempt),
+        );
+
+        $notification = $context['student']->notifications()->sole();
+        $this->assertSame(
+            route('student.assessment-attempts.result', $attempt),
+            $notification->data['action_url'],
+        );
+        $this->assertSame('Assessment graded', $notification->data['title']);
+        $this->assertSame(0, $otherStudent->notifications()->count());
+        $this->assertSame(0, $tutor->notifications()->count());
+        $this->assertSame(0, $parent->notifications()->count());
+        $this->assertSame(0, $admin->notifications()->count());
+
+        $this->actingAs($context['student'])
+            ->get($notification->data['action_url'])
+            ->assertRedirect(route('student.assessment-attempts.show', $attempt));
     }
 
     public function test_partial_essay_grading_does_not_notify_but_full_grading_does(): void

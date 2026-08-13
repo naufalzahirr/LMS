@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\AssessmentAttempt;
+use App\Models\User;
 use Illuminate\Notifications\Notification;
 
 class AssessmentGradedNotification extends Notification
@@ -12,6 +13,17 @@ class AssessmentGradedNotification extends Notification
     /** @return array<int, string> */
     public function via(object $notifiable): array
     {
+        $this->attempt->loadMissing('enrollment');
+
+        // This notification contains Student copy and a Student-only route.
+        // Refuse delivery even if a caller accidentally includes another role
+        // or a different Student in the recipient collection.
+        if (! $notifiable instanceof User
+            || ! $notifiable->hasRole('Student')
+            || $notifiable->id !== $this->attempt->enrollment->student_id) {
+            return [];
+        }
+
         return ['database'];
     }
 

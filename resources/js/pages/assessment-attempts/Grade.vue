@@ -115,13 +115,15 @@ function submit(): void {
     <Head :title="`Grade ${attempt.student}`" />
     <div class="flex h-full flex-1 flex-col gap-6 p-4 md:p-6">
         <div
-            class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+            class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"
         >
-            <Heading
-                :title="attempt.assessment_title"
-                :description="`${attempt.student} · Attempt ${attempt.attempt_number}`"
-            />
-            <div class="flex flex-wrap gap-2">
+            <div class="min-w-0">
+                <Heading
+                    :title="attempt.assessment_title"
+                    :description="`${attempt.student} · Attempt ${attempt.attempt_number}`"
+                />
+            </div>
+            <div class="flex flex-wrap gap-2 lg:shrink-0">
                 <Button variant="outline" :disabled="!previousUrl" as-child>
                     <Link v-if="previousUrl" :href="previousUrl"
                         ><ArrowLeft /> Previous</Link

@@ -205,7 +205,15 @@ function chooseBoolean(
     saveNow(question);
 }
 
-function onTextInput(question: AssessmentPlayerQuestion): void {
+function onTextModelUpdate(
+    question: AssessmentPlayerQuestion,
+    value: string | number,
+): void {
+    // Input/Textarea use a passive v-model proxy, so their native input event
+    // can bubble before the parent model receives the new value. Assign the
+    // emitted value first so the autosave snapshot is always the exact text
+    // currently visible to the Student.
+    answers[question.id].answer_text = String(value);
     recordChange(question);
     scheduleDebouncedSave(question);
 }
@@ -424,16 +432,22 @@ function confirmSubmit(): void {
                     </div>
                     <Textarea
                         v-else-if="question.question_type === 'essay'"
-                        v-model="answers[question.id].answer_text"
+                        :model-value="answers[question.id].answer_text"
                         rows="7"
                         placeholder="Write your answer"
-                        @input="onTextInput(question)"
+                        @update:model-value="
+                            onTextModelUpdate(question, $event)
+                        "
+                        @blur="saveNow(question)"
                     />
                     <Input
                         v-else
-                        v-model="answers[question.id].answer_text"
+                        :model-value="answers[question.id].answer_text"
                         placeholder="Enter your answer"
-                        @input="onTextInput(question)"
+                        @update:model-value="
+                            onTextModelUpdate(question, $event)
+                        "
+                        @blur="saveNow(question)"
                     />
                     <AnswerStatusBadge
                         :state="answerStatus[question.id]"

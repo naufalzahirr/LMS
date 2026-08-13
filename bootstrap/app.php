@@ -36,7 +36,11 @@ return Application::configure(basePath: dirname(__DIR__))
             $request = request();
             $status = $response->getStatusCode();
 
-            if (app()->environment(['local', 'testing'])
+            // Inertia visits must always receive an Inertia error page. A raw
+            // local HTML exception response is displayed by Inertia in its
+            // development iframe overlay and can survive browser history
+            // navigation over otherwise valid pages.
+            if ((app()->environment(['local', 'testing']) && ! $request->header('X-Inertia'))
                 || $request->expectsJson()
                 || ! in_array($status, [403, 404, 419, 422, 500], true)) {
                 return $response;

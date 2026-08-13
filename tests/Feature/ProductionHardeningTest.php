@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Enums\QuestionType;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\AssessmentAnswer;
 use App\Models\QuestionAcceptedAnswer;
 use App\Services\AssessmentAttemptService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Tests\Concerns\BuildsAssessmentAttemptContexts;
 use Tests\TestCase;
@@ -43,6 +45,32 @@ class ProductionHardeningTest extends TestCase
     public function test_private_disk_has_no_generic_file_serving_route(): void
     {
         $this->assertFalse(Route::has('storage.local'));
+    }
+
+    public function test_inertia_forbidden_visit_uses_a_navigable_error_page_even_in_testing(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay]);
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $version = app(HandleInertiaRequests::class)->version(Request::create('/'));
+
+        $this->actingAs($tutor)
+            ->withHeader('X-Inertia', 'true')
+            ->withHeader('X-Inertia-Version', $version ?? '')
+            ->get(route('student.assessment-attempts.result', app(AssessmentAttemptService::class)->startAttempt(
+                $context['student'],
+                $context['enrollment'],
+                $context['assignment'],
+            )))
+            ->assertForbidden()
+            ->assertHeader('X-Inertia', 'true')
+            ->assertJsonPath('component', 'Error')
+            ->assertJsonPath('props.status', 403);
+    }
+
+    public function test_ssr_is_opt_in_until_the_repository_has_a_renderer_bundle(): void
+    {
+        $this->assertFalse(config('inertia.ssr.enabled'));
+        $this->assertFileDoesNotExist(resource_path('js/ssr.ts'));
     }
 
     public function test_answer_keys_are_hidden_from_generic_model_serialization(): void

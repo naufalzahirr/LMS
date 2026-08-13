@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\Competency;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\LessonAsset;
 use App\Models\Module;
 use App\Models\Program;
 use Database\Seeders\AcademicSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AcademicDomainTest extends TestCase
@@ -58,6 +60,7 @@ class AcademicDomainTest extends TestCase
 
     public function test_development_academic_seeder_is_readable_and_idempotent(): void
     {
+        Storage::fake('local');
         $this->seed(AcademicSeeder::class);
         $this->seed(AcademicSeeder::class);
 
@@ -73,5 +76,19 @@ class AcademicDomainTest extends TestCase
         $this->assertDatabaseHas('competencies', ['name' => 'Laravel Fundamentals']);
         $this->assertDatabaseHas('modules', ['name' => 'Getting Started with HTML']);
         $this->assertDatabaseHas('lessons', ['title' => 'Introduction to HTML']);
+        $this->assertDatabaseCount('lesson_assets', 1);
+
+        $asset = LessonAsset::query()->sole();
+        $lesson = Lesson::query()->where('title', 'HTML Tables')->firstOrFail();
+        Storage::disk('local')->assertExists($asset->managedFilePath());
+        $this->assertSame($lesson->id, $asset->lesson_id);
+        $dimensions = getimagesizefromstring(Storage::disk('local')->get($asset->managedFilePath()));
+        $this->assertIsArray($dimensions);
+        $this->assertSame([320, 180], [$dimensions[0], $dimensions[1]]);
+        $this->assertSame('lessonImage', collect($lesson->content_document['content'])->last()['type']);
+        $this->assertSame(
+            $asset->id,
+            collect($lesson->content_document['content'])->last()['attrs']['lessonAssetId'],
+        );
     }
 }

@@ -3,14 +3,18 @@
 namespace Database\Seeders;
 
 use App\Enums\AcademicStatus;
+use App\Enums\LessonAssetType;
 use App\Enums\LessonType;
 use App\Models\Competency;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\LessonAsset;
 use App\Models\Module;
 use App\Models\Program;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 class AcademicSeeder extends Seeder
 {
@@ -167,6 +171,8 @@ class AcademicSeeder extends Seeder
             ],
             ['title' => 'Forms', 'type' => LessonType::Text, 'content' => 'Collect user input with labels, controls, and semantic form structure.', 'external_url' => null, 'content_document' => null],
         ]);
+
+        $this->privateAssetFixture($elements);
     }
 
     /**
@@ -286,5 +292,84 @@ class AcademicSeeder extends Seeder
                 ],
             ],
         ];
+    }
+
+    private function privateAssetFixture(Module $module): void
+    {
+        $lesson = $module->lessons()->where('slug', 'html-tables')->firstOrFail();
+        $bytes = $this->privateQaImageBytes();
+
+        $path = "lesson-assets/{$lesson->id}/qa-private-html-table.png";
+        Storage::disk('local')->put($path, $bytes);
+        $asset = LessonAsset::query()->updateOrCreate(
+            ['lesson_id' => $lesson->id, 'file_path' => $path],
+            [
+                'asset_type' => LessonAssetType::Image,
+                'original_name' => 'qa-private-html-table.png',
+                'mime_type' => 'image/png',
+                'file_size' => strlen($bytes),
+                'alt_text' => 'Private QA image for the HTML Tables lesson',
+                'caption' => 'Non-production fixture used to verify private lesson asset authorization.',
+            ],
+        );
+
+        $document = $lesson->content_document ?? $this->richHtmlTableDocument();
+        $document['content'][] = [
+            'type' => 'lessonImage',
+            'attrs' => [
+                'lessonAssetId' => $asset->id,
+                'altText' => $asset->alt_text,
+                'caption' => $asset->caption,
+                'alignment' => 'center',
+                'size' => 'small',
+                'decorative' => false,
+            ],
+        ];
+        $lesson->forceFill(['content_document' => $document])->save();
+    }
+
+    private function privateQaImageBytes(): string
+    {
+        $width = 320;
+        $height = 180;
+        $pixels = '';
+
+        for ($y = 0; $y < $height; $y++) {
+            $pixels .= "\0"; // PNG scanline filter: none.
+
+            for ($x = 0; $x < $width; $x++) {
+                $insideTable = $x >= 32 && $x <= 287 && $y >= 28 && $y <= 151;
+                $gridLine = $insideTable && (
+                    $x === 32 || $x === 287 || $y === 28 || $y === 151
+                    || in_array($x, [96, 160, 224], true)
+                    || in_array($y, [68, 110], true)
+                );
+
+                $rgb = match (true) {
+                    $gridLine => [15, 23, 42],
+                    $insideTable && $y < 68 => [37, 99, 235],
+                    $insideTable && intdiv($x - 32, 64) % 2 === 0 => [219, 234, 254],
+                    $insideTable => [239, 246, 255],
+                    default => [248, 250, 252],
+                };
+                $pixels .= pack('C3', ...$rgb);
+            }
+        }
+
+        $compressed = gzcompress($pixels, 9);
+
+        if (! is_string($compressed)) {
+            throw new RuntimeException('The private lesson QA fixture could not be compressed.');
+        }
+
+        return "\x89PNG\r\n\x1a\n"
+            .$this->pngChunk('IHDR', pack('NNCCCCC', $width, $height, 8, 2, 0, 0, 0))
+            .$this->pngChunk('IDAT', $compressed)
+            .$this->pngChunk('IEND', '');
+    }
+
+    private function pngChunk(string $type, string $data): string
+    {
+        return pack('N', strlen($data)).$type.$data.pack('N', crc32($type.$data));
     }
 }

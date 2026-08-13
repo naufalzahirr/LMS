@@ -126,6 +126,27 @@ test('an edit made while a save is still running is not lost — the newer revis
     assert.equal(coordinator.getState(), 'saved');
 });
 
+test('rapid Essay text A -> AB -> ABC persists the exact latest snapshot before submit becomes safe', async () => {
+    const transport = deferredTransport();
+    const coordinator = createAnswerAutosaveCoordinator(snapshot(), transport.save);
+
+    coordinator.update(snapshot({ answer_text: 'A' }));
+    coordinator.update(snapshot({ answer_text: 'AB' }));
+    coordinator.update(snapshot({ answer_text: 'ABC' }));
+    coordinator.flush();
+
+    assert.equal(coordinator.isSafe(), false, 'submit must stay blocked while the latest text is saving');
+    assert.equal(transport.calls.length, 1);
+    assert.equal(transport.calls[0].snapshot.answer_text, 'ABC');
+
+    transport.resolveNext();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(coordinator.getState(), 'saved');
+    assert.equal(coordinator.isSafe(), true);
+});
+
 test('an older failure does not overwrite a newer revision already in flight or saved', async () => {
     const transport = deferredTransport();
     const coordinator = createAnswerAutosaveCoordinator(snapshot(), transport.save);

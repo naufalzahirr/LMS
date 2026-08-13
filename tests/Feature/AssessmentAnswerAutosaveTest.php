@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AssessmentAttemptStatus;
 use App\Enums\QuestionType;
 use App\Services\AssessmentAttemptService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Concerns\BuildsAssessmentAttemptContexts;
 use Tests\TestCase;
 
@@ -42,6 +44,88 @@ class AssessmentAnswerAutosaveTest extends TestCase
             'assessment_attempt_question_id' => $question->id,
             'answer_text' => 'Paris',
         ]);
+    }
+
+    public function test_essay_and_short_answer_persist_exactly_through_reload_and_submission(): void
+    {
+        $context = $this->makeAssessmentContext([
+            QuestionType::MultipleChoice,
+            QuestionType::MultipleSelect,
+            QuestionType::ShortAnswer,
+            QuestionType::Essay,
+        ]);
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($tutor);
+        $attempt = app(AssessmentAttemptService::class)->startAttempt(
+            $context['student'],
+            $context['enrollment'],
+            $context['assignment'],
+        )->load('attemptQuestions.options');
+        $questions = $attempt->attemptQuestions->keyBy('question_type.value');
+        $multipleChoice = $questions->get(QuestionType::MultipleChoice->value);
+        $multipleSelect = $questions->get(QuestionType::MultipleSelect->value);
+        $shortAnswer = $questions->get(QuestionType::ShortAnswer->value);
+        $essay = $questions->get(QuestionType::Essay->value);
+
+        $this->saveJson($context['student'], $attempt, $multipleChoice, [
+            'selected_option_ids' => [$multipleChoice->options->firstOrFail()->id],
+        ]);
+        $this->saveJson($context['student'], $attempt, $multipleSelect, [
+            'selected_option_ids' => $multipleSelect->options->take(2)->modelKeys(),
+        ]);
+        $this->saveJson($context['student'], $attempt, $shortAnswer, [
+            'answer_text' => 'Laravel',
+        ]);
+        $this->saveJson($context['student'], $attempt, $essay, [
+            'answer_text' => 'Essay persistence test 123',
+        ]);
+
+        $this->assertDatabaseHas('assessment_answers', [
+            'assessment_attempt_question_id' => $essay->id,
+            'answer_text' => 'Essay persistence test 123',
+        ]);
+        $this->actingAs($context['student'])
+            ->get(route('student.assessment-attempts.show', $attempt))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('attempt.questions.2.answer.answer_text', 'Laravel')
+                ->where('attempt.questions.3.answer.answer_text', 'Essay persistence test 123'));
+
+        // This is the same endpoint used by the Essay blur flush.
+        $this->saveJson($context['student'], $attempt, $essay, [
+            'answer_text' => 'Essay second persistence test 456',
+        ]);
+        $this->actingAs($context['student'])
+            ->get(route('student.assessment-attempts.show', $attempt))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('attempt.questions.3.answer.answer_text', 'Essay second persistence test 456'));
+
+        // The frontend blocks finalization until this latest save receives its
+        // successful response. Submit immediately after that response, as the
+        // submit confirmation dialog does.
+        $this->saveJson($context['student'], $attempt, $essay, [
+            'answer_text' => 'Essay submitted response 789',
+        ]);
+        $this->actingAs($context['student'])
+            ->post(route('student.assessment-attempts.submit', $attempt))
+            ->assertRedirect(route('student.assessment-attempts.result', $attempt));
+
+        $this->assertSame(AssessmentAttemptStatus::PendingGrading, $attempt->refresh()->status);
+        $this->assertNotNull($attempt->submitted_at);
+        $this->assertDatabaseHas('assessment_answers', [
+            'assessment_attempt_id' => $attempt->id,
+            'assessment_attempt_question_id' => $essay->id,
+            'answer_text' => 'Essay submitted response 789',
+        ]);
+        $this->actingAs($tutor)
+            ->get(route('tutor.class-assessment-attempts.edit', [
+                $context['class'],
+                $context['assignment'],
+                $attempt,
+            ]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('assessment-attempts/Grade')
+                ->where('essays.0.answer_text', 'Essay submitted response 789')
+                ->where('auto_graded.2.student_answer', 'Laravel'));
     }
 
     public function test_a_non_json_save_request_still_redirects_back_for_backward_compatibility(): void
@@ -146,5 +230,24 @@ class AssessmentAnswerAutosaveTest extends TestCase
                 ['Accept' => 'application/json'],
             )
             ->assertStatus(422);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function saveJson($student, $attempt, $question, array $overrides): void
+    {
+        $this->actingAs($student)
+            ->patch(
+                route('student.assessment-answers.update', [$attempt, $question]),
+                [
+                    'answer_text' => null,
+                    'answer_boolean' => null,
+                    'selected_option_ids' => [],
+                    ...$overrides,
+                ],
+                ['Accept' => 'application/json'],
+            )
+            ->assertNoContent();
     }
 }
