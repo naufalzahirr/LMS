@@ -361,6 +361,53 @@ class AssessmentGradingAndFeedbackTest extends TestCase
                 ->missing('result.accepted_answers'));
     }
 
+    public function test_result_partial_reload_returns_current_grading_and_feedback_from_the_database(): void
+    {
+        $context = $this->makeAssessmentContext(
+            [QuestionType::Essay],
+            ['feedback_mode' => AssessmentFeedbackMode::AfterEachAttempt],
+        );
+        $attempt = $this->submitPendingAttempt($context);
+        $resultUrl = route('student.assessment-attempts.result', $attempt);
+
+        $pendingResponse = $this->actingAs($context['student'])
+            ->get($resultUrl)
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/assessments/Result')
+                ->where('result.status', AssessmentAttemptStatus::PendingGrading->value)
+                ->where('result.earned_points', null)
+                ->where('result.detailed_feedback', false)
+                ->missing('result.questions'));
+
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($tutor);
+        $essay = $attempt->attemptQuestions()->firstOrFail();
+        app(AssessmentGradingService::class)->grade($attempt, $tutor, [[
+            'attempt_question_id' => $essay->id,
+            'manual_score' => '3.50',
+            'feedback' => 'Clear explanation from the Tutor.',
+        ]]);
+
+        $this->actingAs($context['student'])
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => $pendingResponse->inertiaPage()['version'],
+                'X-Inertia-Partial-Component' => 'student/assessments/Result',
+                'X-Inertia-Partial-Data' => 'result',
+            ])
+            ->get($resultUrl)
+            ->assertOk()
+            ->assertHeader('X-Inertia', 'true')
+            ->assertJsonPath('component', 'student/assessments/Result')
+            ->assertJsonPath('props.result.status', AssessmentAttemptStatus::Graded->value)
+            ->assertJsonPath('props.result.earned_points', '3.50')
+            ->assertJsonPath('props.result.max_points', '4.00')
+            ->assertJsonPath('props.result.percentage', '87.50')
+            ->assertJsonPath('props.result.detailed_feedback', true)
+            ->assertJsonPath('props.result.questions.0.points_earned', '3.50')
+            ->assertJsonPath('props.result.questions.0.feedback', 'Clear explanation from the Tutor.');
+    }
+
     /** @param array<string, mixed> $context */
     private function submitPendingAttempt(array $context): AssessmentAttempt
     {

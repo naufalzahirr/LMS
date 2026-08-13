@@ -1,14 +1,33 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowLeft, CheckCircle2, Clock3, XCircle } from '@lucide/vue';
+import { onMounted, onUnmounted } from 'vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { statusLabel } from '@/lib/assessmentAttempt';
+import { createResultFreshnessController } from '@/lib/resultFreshness';
 import type { AssessmentResult } from '@/types/assessment-attempt';
 
 defineProps<{ result: AssessmentResult }>();
+
+const freshness = createResultFreshnessController(() => {
+    router.reload({ only: ['result'], showProgress: false });
+});
+
+function handlePageShow(event: PageTransitionEvent): void {
+    freshness.onPageShow(event.persisted);
+}
+
+onMounted(() => {
+    window.addEventListener('pageshow', handlePageShow);
+    freshness.onMount();
+});
+
+onUnmounted(() => {
+    window.removeEventListener('pageshow', handlePageShow);
+});
 
 function displayAnswer(value: string | string[] | boolean | null): string {
     if (Array.isArray(value)) {
