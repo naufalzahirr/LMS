@@ -9,6 +9,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\LearningClass;
 use App\Models\Lesson;
+use App\Models\LessonCheckpoint;
 use App\Models\LessonProgress;
 use App\Models\Module;
 use App\Models\User;
@@ -73,6 +74,14 @@ class LessonProgressTest extends TestCase
     public function test_student_can_complete_directly_and_reopen_lesson(): void
     {
         [$student, , $learningClass, $lesson] = $this->context();
+        $checkpoint = LessonCheckpoint::factory()->for($lesson)->create();
+        $lesson->forceFill(['content_document' => [
+            'type' => 'doc',
+            'content' => [[
+                'type' => 'lessonCheckpoint',
+                'attrs' => ['checkpointId' => $checkpoint->id],
+            ]],
+        ]])->save();
 
         $this->actingAs($student)->patch(route('student.lesson-progress.update', [$learningClass, $lesson]), [
             'status' => LessonProgressStatus::Completed->value,
@@ -92,6 +101,7 @@ class LessonProgressTest extends TestCase
         $this->assertSame(LessonProgressStatus::InProgress, $progress->status);
         $this->assertNull($progress->completed_at);
         $this->assertTrue($progress->started_at?->equalTo($startedAt) ?? false);
+        $this->assertDatabaseCount('lesson_checkpoint_attempts', 0);
     }
 
     public function test_same_student_has_separate_progress_for_different_enrollments(): void

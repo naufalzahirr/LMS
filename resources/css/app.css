@@ -142,6 +142,14 @@
         @apply my-5 w-full border-collapse text-sm;
     }
 
+    .rich-lesson-editor .tableWrapper {
+        @apply my-5 max-w-full overflow-x-auto;
+    }
+
+    .rich-lesson-editor .tableWrapper table {
+        @apply my-0;
+    }
+
     .rich-lesson-editor .tiptap th,
     .rich-lesson-editor .tiptap td {
         @apply min-w-24 border px-3 py-2 align-top;

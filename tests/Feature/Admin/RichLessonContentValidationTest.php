@@ -4,13 +4,16 @@ namespace Tests\Feature\Admin;
 
 use App\Enums\AcademicStatus;
 use App\Enums\LessonAssetType;
+use App\Enums\LessonCheckpointType;
 use App\Models\Lesson;
 use App\Models\LessonAsset;
+use App\Models\LessonCheckpoint;
 use App\Models\User;
 use App\Services\LessonContentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class RichLessonContentValidationTest extends TestCase
@@ -62,6 +65,140 @@ class RichLessonContentValidationTest extends TestCase
             'HTML Tables Read MDN',
             app(LessonContentService::class)->extractPlainText($lesson->content_document),
         );
+    }
+
+    public function test_complete_multiblock_document_preserves_order_formatting_and_code_exactly(): void
+    {
+        $admin = $this->admin();
+        $lesson = Lesson::factory()->create();
+        $image = $this->asset($lesson, LessonAssetType::Image);
+        $pdf = $this->asset($lesson, LessonAssetType::Document);
+        $checkpoint = LessonCheckpoint::factory()->for($lesson)->create([
+            'checkpoint_type' => LessonCheckpointType::TrueFalse,
+            'prompt' => 'Rich lesson content is stored as structured data.',
+            'configuration' => [],
+            'answer_key' => ['correct_boolean' => true],
+        ]);
+        $codeSamples = [
+            'html' => "<main>\n  <h1>Lesson</h1>\n</main>",
+            'css' => ".lesson {\n  display: grid;\n}",
+            'javascript' => "const lesson = { ready: true };\nconsole.log(lesson);",
+            'php' => "<?php\n\nreturn ['lesson' => true];",
+            'python' => "def lesson():\n    return {'ready': True}",
+            'cpp' => "#include <iostream>\nint main() {\n  return 0;\n}",
+            'json' => "{\n  \"lesson\": true\n}",
+            'bash' => "#!/usr/bin/env bash\nprintf '%s\\n' \"lesson\"",
+        ];
+        $document = [
+            'type' => 'doc',
+            'content' => [
+                ['type' => 'heading', 'attrs' => ['level' => 1], 'content' => [['type' => 'text', 'text' => 'Complete Rich Lesson']]],
+                ['type' => 'heading', 'attrs' => ['level' => 2], 'content' => [['type' => 'text', 'text' => 'Formatting']]],
+                ['type' => 'heading', 'attrs' => ['level' => 3], 'content' => [['type' => 'text', 'text' => 'Details']]],
+                ['type' => 'paragraph', 'content' => [
+                    ['type' => 'text', 'text' => 'Several paragraphs begin here. '],
+                    ['type' => 'text', 'text' => 'Bold', 'marks' => [['type' => 'bold']]],
+                    ['type' => 'text', 'text' => ' and '],
+                    ['type' => 'text', 'text' => 'italic', 'marks' => [['type' => 'italic']]],
+                    ['type' => 'text', 'text' => ' with '],
+                    ['type' => 'text', 'text' => 'a safe link', 'marks' => [['type' => 'link', 'attrs' => ['href' => 'https://example.com/lesson?source=qa']]]],
+                    ['type' => 'text', 'text' => '.'],
+                ]],
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'A second paragraph remains independent.']]],
+                ['type' => 'bulletList', 'content' => [
+                    ['type' => 'listItem', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Bullet one']]]]],
+                    ['type' => 'listItem', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Bullet two']]]]],
+                ]],
+                ['type' => 'orderedList', 'attrs' => ['start' => 2], 'content' => [
+                    ['type' => 'listItem', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Numbered item']]]]],
+                ]],
+                ['type' => 'blockquote', 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Structured content stays inert.']]]]],
+                ['type' => 'horizontalRule'],
+                ['type' => 'table', 'content' => [
+                    ['type' => 'tableRow', 'content' => [
+                        ['type' => 'tableHeader', 'attrs' => ['colspan' => 1, 'rowspan' => 1, 'colwidth' => null], 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Block']]]]],
+                        ['type' => 'tableHeader', 'attrs' => ['colspan' => 1, 'rowspan' => 1, 'colwidth' => null], 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'State']]]]],
+                    ]],
+                    ['type' => 'tableRow', 'content' => [
+                        ['type' => 'tableCell', 'attrs' => ['colspan' => 1, 'rowspan' => 1, 'colwidth' => null], 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Table']]]]],
+                        ['type' => 'tableCell', 'attrs' => ['colspan' => 1, 'rowspan' => 1, 'colwidth' => null], 'content' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Preserved']]]]],
+                    ]],
+                ]],
+                ...collect($codeSamples)->map(fn (string $code, string $language): array => [
+                    'type' => 'codeBlock',
+                    'attrs' => ['language' => $language],
+                    'content' => [['type' => 'text', 'text' => $code]],
+                ])->values()->all(),
+                ['type' => 'lessonImage', 'attrs' => [
+                    'lessonAssetId' => $image->id,
+                    'altText' => 'Accessible image',
+                    'caption' => 'Image caption',
+                    'alignment' => 'center',
+                    'size' => 'large',
+                    'decorative' => false,
+                ]],
+                ...collect(LessonContentService::CALLOUT_TYPES)->map(fn (string $type): array => [
+                    'type' => 'callout',
+                    'attrs' => ['type' => $type],
+                    'content' => [['type' => 'text', 'text' => "A {$type} callout with durable content."]],
+                ])->all(),
+                ['type' => 'externalVideo', 'attrs' => [
+                    'url' => 'https://youtu.be/dQw4w9WgXcQ?t=42',
+                    'title' => 'Trusted video',
+                    'caption' => 'Responsive external media',
+                ]],
+                ['type' => 'lessonFile', 'attrs' => [
+                    'lessonAssetId' => $pdf->id,
+                    'title' => 'Lesson PDF',
+                    'caption' => 'Downloadable resource',
+                ]],
+                ['type' => 'lessonCheckpoint', 'attrs' => ['checkpointId' => $checkpoint->id]],
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Final paragraph after every rich block.']]],
+            ],
+        ];
+
+        $this->actingAs($admin)
+            ->put(route('admin.lessons.update', $lesson), $this->payload($lesson, $document))
+            ->assertRedirect(route('admin.lessons.show', $lesson));
+
+        $stored = $lesson->refresh()->content_document;
+        $this->assertSame(
+            [
+                'heading', 'heading', 'heading', 'paragraph', 'paragraph', 'bulletList',
+                'orderedList', 'blockquote', 'horizontalRule', 'table',
+                ...array_fill(0, count($codeSamples), 'codeBlock'),
+                'lessonImage', 'callout', 'callout', 'callout', 'callout',
+                'externalVideo', 'lessonFile', 'lessonCheckpoint', 'paragraph',
+            ],
+            array_column($stored['content'], 'type'),
+        );
+        $this->assertSame([1, 2, 3], array_map(
+            fn (array $node): int => $node['attrs']['level'],
+            array_slice($stored['content'], 0, 3),
+        ));
+        $storedCode = array_slice($stored['content'], 10, count($codeSamples));
+        $this->assertSame(array_keys($codeSamples), array_column(array_column($storedCode, 'attrs'), 'language'));
+        $this->assertSame(array_values($codeSamples), array_map(
+            fn (array $node): string => $node['content'][0]['text'],
+            $storedCode,
+        ));
+        $this->assertSame('youtube', $stored['content'][23]['attrs']['provider']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.lessons.show', $lesson))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('lesson.content_document.content.23.attrs.embedUrl', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ')
+                ->missing('lesson.content_document.content.25.attrs.checkpoint.correct_boolean'));
+
+        $this->actingAs($admin)
+            ->get(route('admin.lessons.edit', $lesson))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('lesson.content_document.content.0.content.0.text', 'Complete Rich Lesson')
+                ->where('lesson.content_document.content.10.content.0.text', $codeSamples['html'])
+                ->where('lesson.content_document.content.25.attrs.checkpoint.correct_boolean', true)
+                ->where('lesson.content_document.content.26.content.0.text', 'Final paragraph after every rich block.'));
     }
 
     public function test_unsupported_or_dangerous_content_is_rejected(): void
@@ -271,11 +408,13 @@ class RichLessonContentValidationTest extends TestCase
 
     private function asset(Lesson $lesson, LessonAssetType $type): LessonAsset
     {
+        $name = $type === LessonAssetType::Image ? 'image.png' : 'resource.pdf';
+
         return LessonAsset::query()->create([
             'lesson_id' => $lesson->id,
             'asset_type' => $type,
-            'original_name' => $type === LessonAssetType::Image ? 'image.png' : 'resource.pdf',
-            'file_path' => "lesson-assets/{$lesson->id}/fixture",
+            'original_name' => $name,
+            'file_path' => "lesson-assets/{$lesson->id}/{$name}",
             'mime_type' => $type === LessonAssetType::Image ? 'image/png' : 'application/pdf',
             'file_size' => 100,
             'alt_text' => $type === LessonAssetType::Image ? 'Accessible image' : null,

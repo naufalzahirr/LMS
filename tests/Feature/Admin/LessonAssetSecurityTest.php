@@ -178,6 +178,24 @@ class LessonAssetSecurityTest extends TestCase
         [$student, $learningClass, $lesson] = $this->studentContext();
         $image = $this->storedAsset($lesson, LessonAssetType::Image, 'diagram.png');
         $pdf = $this->storedAsset($lesson, LessonAssetType::Document, 'exercise.pdf');
+        $lesson->forceFill(['content_document' => [
+            'type' => 'doc',
+            'content' => [
+                ['type' => 'lessonImage', 'attrs' => [
+                    'lessonAssetId' => $image->id,
+                    'altText' => 'Accessible image',
+                    'caption' => null,
+                    'alignment' => 'center',
+                    'size' => 'large',
+                    'decorative' => false,
+                ]],
+                ['type' => 'lessonFile', 'attrs' => [
+                    'lessonAssetId' => $pdf->id,
+                    'title' => 'Exercise PDF',
+                    'caption' => null,
+                ]],
+            ],
+        ]])->save();
 
         $this->actingAs($student)
             ->get(route('student.lesson-assets.file', [$learningClass, $lesson, $image]))
@@ -205,6 +223,24 @@ class LessonAssetSecurityTest extends TestCase
         $this->actingAs($student)
             ->get(route('student.lesson-assets.file', [$learningClass, $lesson, $otherAsset]))
             ->assertNotFound();
+    }
+
+    public function test_student_cannot_access_an_unreferenced_asset_from_an_accessible_lesson(): void
+    {
+        [$student, $learningClass, $lesson] = $this->studentContext();
+        $removedAsset = $this->storedAsset($lesson, LessonAssetType::Image, 'removed.png');
+        $lesson->forceFill([
+            'content_document' => [
+                'type' => 'doc',
+                'content' => [['type' => 'paragraph']],
+            ],
+        ])->save();
+
+        $this->actingAs($student)
+            ->get(route('student.lesson-assets.file', [$learningClass, $lesson, $removedAsset]))
+            ->assertNotFound();
+
+        Storage::disk('local')->assertExists($removedAsset->managedFilePath());
     }
 
     public function test_path_traversal_asset_is_never_served(): void

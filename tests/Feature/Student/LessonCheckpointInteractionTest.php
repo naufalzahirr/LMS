@@ -101,6 +101,8 @@ class LessonCheckpointInteractionTest extends TestCase
                 ->pluck('attempt_number')
                 ->all(),
         );
+        $this->assertDatabaseCount('assessment_attempts', 0);
+        $this->assertDatabaseCount('student_competency_progress', 0);
     }
 
     public function test_multiple_select_requires_the_exact_set_regardless_of_submission_order(): void

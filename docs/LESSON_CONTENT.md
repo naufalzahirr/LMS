@@ -22,6 +22,8 @@ Supported content is deliberately limited to:
 
 Admin and Tutor upload/read routes reuse the Lesson policy. Tutor access remains limited to active assigned courses. Student asset routes repeat the same enrollment, active hierarchy, and competency-lock checks as the Lesson player. Parent access is denied. Responses disable caching and MIME sniffing and apply a sandbox content security policy.
 
+Student delivery also requires the asset to remain referenced by the Lesson's canonical content document. An image or PDF retained temporarily for author Undo or delayed cleanup remains author-only after its node is removed or replaced.
+
 An asset referenced by `content_document` cannot be deleted. Removing a node does not immediately delete its file, so Undo and a subsequent save remain safe. The hourly `lesson-authoring:cleanup` command removes an unreferenced asset only after both the asset and its lesson have been unchanged for the configured 24-hour grace period. Deleting a lesson removes its private rich assets and managed directories consistently.
 
 ## Authoring draft lifecycle

@@ -40,6 +40,7 @@ class RichLessonFrontendIntegrationTest extends TestCase
         $link = $this->source('resources/js/components/lesson/dialogs/LessonLinkDialog.vue');
         $video = $this->source('resources/js/components/lesson/dialogs/LessonVideoDialog.vue');
         $contentTypes = $this->source('resources/js/types/lesson-content.ts');
+        $styles = $this->source('resources/css/app.css');
 
         foreach (['linkSelection', 'getMarkRange', 'preserveToolbarSelection', 'restoreNodeSelection', 'videoInsertionPosition', 'imageInsertionPosition', 'resourceInsertionPosition', 'currentBlockInsertionPosition', 'insertBlockAt'] as $selectionGuard) {
             $this->assertStringContainsString($selectionGuard, $editor);
@@ -64,6 +65,8 @@ class RichLessonFrontendIntegrationTest extends TestCase
         $this->assertStringContainsString('shrink-0 border-t', $video);
         $this->assertStringContainsString("key !== 'url' || node.type === 'externalVideo'", $contentTypes);
         $this->assertStringContainsString("['tableCell', 'tableHeader'].includes(node.type)", $contentTypes);
+        $this->assertStringContainsString('.rich-lesson-editor .tableWrapper', $styles);
+        $this->assertStringContainsString('max-w-full overflow-x-auto', $styles);
     }
 
     private function source(string $path): string
