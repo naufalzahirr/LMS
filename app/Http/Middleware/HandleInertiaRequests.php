@@ -3,13 +3,17 @@
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Services\NotificationSummaryService;
 use App\Services\TutorCourseAccessService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    public function __construct(private readonly TutorCourseAccessService $tutorAccess) {}
+    public function __construct(
+        private readonly TutorCourseAccessService $tutorAccess,
+        private readonly NotificationSummaryService $notifications,
+    ) {}
 
     /**
      * The root template that's loaded on the first page visit.
@@ -51,6 +55,9 @@ class HandleInertiaRequests extends Middleware
                 'has_active_teaching_course' => $user instanceof User
                     && $this->tutorAccess->hasAnyActiveCourse($user),
             ],
+            'notifications' => $user instanceof User
+                ? $this->notifications->sharedPayload($user)
+                : ['unread_count' => 0, 'latest' => []],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

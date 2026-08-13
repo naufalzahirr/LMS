@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentStatus;
 use App\Enums\ClassAssessmentStatus;
+use App\Events\LearningClassAssessmentActivated;
 use App\Models\Assessment;
 use App\Models\LearningClass;
 use App\Models\LearningClassAssessment;
@@ -18,7 +19,7 @@ class ClassAssessmentService
     /** @param array{assessment_id: int, opens_at: string|null, closes_at: string|null, max_attempts: int, status: ClassAssessmentStatus, feedback_mode: AssessmentFeedbackMode} $data */
     public function assign(LearningClass $learningClass, Assessment $assessment, array $data): LearningClassAssessment
     {
-        return DB::transaction(function () use ($learningClass, $assessment, $data): LearningClassAssessment {
+        $assignment = DB::transaction(function () use ($learningClass, $assessment, $data): LearningClassAssessment {
             $this->ensureValidAttemptLimit($data['max_attempts']);
             $assessment->loadMissing('competency:id,course_id');
 
@@ -36,6 +37,13 @@ class ClassAssessmentService
 
             return $learningClass->assessmentAssignments()->create($data);
         });
+
+        if ($assignment->status === ClassAssessmentStatus::Active
+            && ($assignment->opens_at === null || $assignment->opens_at->isPast())) {
+            LearningClassAssessmentActivated::dispatch($assignment);
+        }
+
+        return $assignment;
     }
 
     /** @param array{opens_at: string|null, closes_at: string|null, max_attempts: int, status: ClassAssessmentStatus, feedback_mode: AssessmentFeedbackMode} $data */

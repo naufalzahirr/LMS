@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\RemedialAssignmentController as AdminRemedialAssi
 use App\Http\Controllers\Admin\TutorAssignmentController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Parent\DashboardController as ParentDashboardController;
 use App\Http\Controllers\Parent\StudentController as ParentStudentController;
 use App\Http\Controllers\Student\AssessmentAnswerController as StudentAssessmentAnswerController;
@@ -48,6 +49,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('parent/dashboard', ParentDashboardController::class)->name('parent.dashboard');
     Route::get('parent/students/{student}', [ParentStudentController::class, 'show'])->name('parent.students.show');
+
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::patch('notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
 
     Route::get('admin/reports/progress', [ProgressReportController::class, 'index'])
         ->name('admin.reports.progress.index');

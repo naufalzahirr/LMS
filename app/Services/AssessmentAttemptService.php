@@ -9,6 +9,8 @@ use App\Enums\ClassAssessmentStatus;
 use App\Enums\EnrollmentStatus;
 use App\Enums\LearningClassStatus;
 use App\Enums\QuestionType;
+use App\Events\AssessmentAttemptGraded;
+use App\Events\AssessmentSubmittedForGrading;
 use App\Models\AssessmentAnswer;
 use App\Models\AssessmentAttempt;
 use App\Models\AssessmentAttemptQuestion;
@@ -234,8 +236,13 @@ class AssessmentAttemptService
 
             $lockedAttempt->update($attributes);
 
+            if ($lockedAttempt->status === AssessmentAttemptStatus::PendingGrading) {
+                AssessmentSubmittedForGrading::dispatch($lockedAttempt);
+            }
+
             if ($lockedAttempt->status === AssessmentAttemptStatus::Graded) {
                 $this->masteryEvaluation->evaluate($lockedAttempt->refresh());
+                AssessmentAttemptGraded::dispatch($lockedAttempt);
             }
 
             return $lockedAttempt->refresh();

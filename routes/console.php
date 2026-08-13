@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command('lesson-authoring:cleanup')
     ->hourly()
     ->withoutOverlapping();
+
+Schedule::command('notifications:send-deadline-reminders')
+    ->hourly()
+    ->withoutOverlapping();

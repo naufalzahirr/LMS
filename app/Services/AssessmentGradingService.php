@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\AssessmentAttemptStatus;
 use App\Enums\QuestionType;
+use App\Events\AssessmentAttemptGraded;
 use App\Models\AssessmentAnswer;
 use App\Models\AssessmentAttempt;
 use App\Models\AssessmentAttemptQuestion;
@@ -104,6 +105,7 @@ class AssessmentGradingService
                 'graded_at' => now(),
             ]);
             $this->masteryEvaluation->evaluate($lockedAttempt->refresh());
+            AssessmentAttemptGraded::dispatch($lockedAttempt);
 
             return $lockedAttempt->refresh();
         });

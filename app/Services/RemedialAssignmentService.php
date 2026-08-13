@@ -6,6 +6,7 @@ use App\Enums\AcademicStatus;
 use App\Enums\AssessmentAttemptStatus;
 use App\Enums\RemedialAssignmentStatus;
 use App\Enums\StudentCompetencyStatus;
+use App\Events\StudentRemedialAssigned;
 use App\Models\AssessmentAttempt;
 use App\Models\Enrollment;
 use App\Models\Lesson;
@@ -55,7 +56,10 @@ class RemedialAssignmentService
                 ]);
             }
 
-            return $assignment->refresh()->load('lessons.lesson');
+            $assignment = $assignment->refresh()->load('lessons.lesson');
+            StudentRemedialAssigned::dispatch($assignment);
+
+            return $assignment;
         });
     }
 
