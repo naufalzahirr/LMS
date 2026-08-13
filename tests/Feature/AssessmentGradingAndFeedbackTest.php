@@ -146,6 +146,41 @@ class AssessmentGradingAndFeedbackTest extends TestCase
         $this->assertSame(AssessmentAttemptStatus::Graded, $attempt->refresh()->status);
     }
 
+    public function test_grading_edit_route_renders_the_correct_assessment_and_student_scoped_to_the_class(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay]);
+        $attempt = $this->submitPendingAttempt($context);
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($tutor);
+
+        $this->actingAs($tutor)
+            ->get(route('tutor.class-assessment-attempts.edit', [$context['class'], $context['assignment'], $attempt]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('assessment-attempts/Grade')
+                ->where('attempt.id', $attempt->id)
+                ->where('attempt.assessment_title', $context['assessment']->title)
+                ->where('attempt.student', $context['student']->name));
+    }
+
+    public function test_grading_edit_route_returns_a_controlled_404_when_the_assignment_no_longer_references_a_valid_assessment(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay]);
+        $attempt = $this->submitPendingAttempt($context);
+        $tutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($tutor);
+
+        // Simulates data corruption that bypasses AssessmentService::delete()'s
+        // "cannot delete an assessment already assigned/used" guard (e.g. a
+        // future code path or manual database edit) — the grading page must
+        // fail with a controlled 404, never a null-property crash.
+        $context['assessment']->delete();
+
+        $this->actingAs($tutor)
+            ->get(route('tutor.class-assessment-attempts.edit', [$context['class'], $context['assignment'], $attempt]))
+            ->assertNotFound();
+    }
+
     public function test_feedback_modes_release_only_the_allowed_result_detail(): void
     {
         $payloads = app(StudentAssessmentPayloadService::class);

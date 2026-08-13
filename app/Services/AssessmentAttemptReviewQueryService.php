@@ -33,6 +33,11 @@ class AssessmentAttemptReviewQueryService
         string $gradeRouteName,
     ): array {
         $assignment->loadMissing('assessment.competency:id,course_id,name');
+        // The assessment relation is only ever missing for genuinely corrupt
+        // data (e.g. an Assessment removed outside AssessmentService::delete()'s
+        // guard) — never a state normal application flows can produce. Fail
+        // with a controlled 404 rather than a null-property crash.
+        abort_if($assignment->assessment === null, 404);
         $paginator = $this->attempts($assignment, $status);
 
         return [
@@ -81,6 +86,7 @@ class AssessmentAttemptReviewQueryService
                 ->where('question_type', QuestionType::Essay->value)
                 ->with('answer'),
         ]);
+        abort_if($attempt->classAssessment->assessment === null, 404);
 
         return [
             'attempt' => [

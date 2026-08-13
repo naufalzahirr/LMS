@@ -24,7 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property ClassAssessmentStatus $status
  * @property AssessmentFeedbackMode $feedback_mode
  * @property-read LearningClass $learningClass
- * @property-read Assessment $assessment
+ * @property-read Assessment|null $assessment Null when the referenced Assessment has been soft-deleted.
  * @property-read Collection<int, AssessmentAttempt> $attempts
  * @property-read int|null $attempts_count
  * @property-read MasteryRule|null $masteryRule

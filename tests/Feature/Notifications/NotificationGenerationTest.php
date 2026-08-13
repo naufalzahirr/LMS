@@ -100,6 +100,41 @@ class NotificationGenerationTest extends TestCase
         $this->assertSame(0, $unrelatedParent->notifications()->count());
     }
 
+    public function test_graded_attempt_never_sends_the_student_facing_notification_to_a_tutor(): void
+    {
+        $context = $this->makeAssessmentContext([QuestionType::Essay]);
+        $authorizedTutor = $this->userWithAssessmentRole('Tutor');
+        $context['class']->tutors()->attach($authorizedTutor);
+        $unrelatedTutor = $this->userWithAssessmentRole('Tutor');
+        $attempt = $this->submitPendingAttempt($context);
+        $essay = $attempt->attemptQuestions()->where('question_type', QuestionType::Essay->value)->firstOrFail();
+
+        // The authorized Tutor's own grading-needed notification is a
+        // separate, correctly-scoped notification type — confirm it still
+        // fires, distinctly from the Student-facing graded notification below.
+        $this->assertSame(
+            1,
+            $authorizedTutor->notifications()->where('type', AssessmentNeedsGradingNotification::class)->count(),
+        );
+
+        app(AssessmentGradingService::class)->grade($attempt, $authorizedTutor, [
+            $this->essayGrade($essay->id, '4.00'),
+        ]);
+
+        $this->assertSame(
+            1,
+            $context['student']->notifications()->where('type', AssessmentGradedNotification::class)->count(),
+        );
+        $this->assertSame(
+            0,
+            $authorizedTutor->notifications()->where('type', AssessmentGradedNotification::class)->count(),
+        );
+        $this->assertSame(
+            0,
+            $unrelatedTutor->notifications()->where('type', AssessmentGradedNotification::class)->count(),
+        );
+    }
+
     public function test_partial_essay_grading_does_not_notify_but_full_grading_does(): void
     {
         $context = $this->makeAssessmentContext([QuestionType::Essay, QuestionType::Essay]);
