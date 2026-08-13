@@ -7,17 +7,10 @@ import PaginationLinks from '@/components/PaginationLinks.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { dashboard } from '@/routes';
-import type { PaginationLink } from '@/types/academic';
-import type { NotificationItem } from '@/types/notifications';
+import type { NotificationPage } from '@/types/notifications';
 
 const props = defineProps<{
-    notifications: {
-        data: NotificationItem[];
-        links: PaginationLink[];
-        from: number | null;
-        to: number | null;
-        total: number;
-    };
+    notificationPage: NotificationPage;
     unreadCount: number;
     markAllReadUrl: string;
 }>();
@@ -56,7 +49,7 @@ defineOptions({
             </Button>
         </div>
 
-        <Card v-if="!notifications.data.length">
+        <Card v-if="!notificationPage.data.length">
             <CardContent
                 class="flex flex-col items-center gap-3 py-14 text-center text-muted-foreground"
             >
@@ -68,7 +61,7 @@ defineOptions({
         <Card v-else class="py-2">
             <CardContent class="divide-y px-2">
                 <NotificationListItem
-                    v-for="notification in notifications.data"
+                    v-for="notification in notificationPage.data"
                     :key="notification.id"
                     :notification="notification"
                 />
@@ -76,10 +69,10 @@ defineOptions({
         </Card>
 
         <PaginationLinks
-            :links="notifications.links"
-            :from="notifications.from"
-            :to="notifications.to"
-            :total="notifications.total"
+            :links="notificationPage.links"
+            :from="notificationPage.from"
+            :to="notificationPage.to"
+            :total="notificationPage.total"
             item-label="notifications"
         />
     </div>

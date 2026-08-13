@@ -22,7 +22,9 @@ class NotificationController extends Controller
         $paginator = $user->notifications()->latest()->paginate(self::PER_PAGE);
 
         return Inertia::render('notifications/Index', [
-            'notifications' => [
+            // Named distinctly from the global "notificationSummary" shared
+            // prop so this page's paginated collection can never overwrite it.
+            'notificationPage' => [
                 'data' => $paginator->getCollection()
                     ->map(fn (DatabaseNotification $notification): array => $this->notifications->mapForDisplay($notification))
                     ->all(),

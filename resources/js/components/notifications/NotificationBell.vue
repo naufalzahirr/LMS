@@ -12,20 +12,15 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+    showMarkAllAsRead,
+    showUnreadBadge,
+    unreadBadgeLabel,
+} from '@/lib/notificationDisplay';
 import { index as notificationsIndex, readAll } from '@/routes/notifications';
 
 const page = usePage();
-const summary = computed(() => page.props.notifications);
-const badgeLabel = computed(() =>
-    summary.value.unread_count > 99
-        ? '99+'
-        : String(summary.value.unread_count),
-);
+const summary = computed(() => page.props.notificationSummary);
+const badgeLabel = computed(() => unreadBadgeLabel(summary.value.unread_count));
 
 function markAllRead(): void {
     router.post(readAll.url(), {}, { preserveScroll: true });
@@ -34,45 +29,37 @@ function markAllRead(): void {
 
 <template>
     <DropdownMenu>
-        <TooltipProvider :delay-duration="0">
-            <Tooltip>
-                <TooltipTrigger as-child>
-                    <DropdownMenuTrigger as-child>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            class="relative h-9 w-9"
-                            aria-label="Notifications"
-                        >
-                            <Bell class="size-5" />
-                            <Badge
-                                v-if="summary.unread_count > 0"
-                                variant="destructive"
-                                class="absolute -top-1 -right-1 h-4 min-w-4 justify-center rounded-full px-1 text-[10px] leading-none"
-                            >
-                                <span class="sr-only">
-                                    {{ summary.unread_count }} unread
-                                    notifications</span
-                                >
-                                <span aria-hidden="true">{{ badgeLabel }}</span>
-                            </Badge>
-                        </Button>
-                    </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                    <p>Notifications</p>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
+        <DropdownMenuTrigger as-child>
+            <Button
+                variant="ghost"
+                size="icon"
+                class="relative h-9 w-9"
+                aria-label="Notifications"
+            >
+                <Bell class="size-5" />
+                <Badge
+                    v-if="showUnreadBadge(summary.unread_count)"
+                    variant="destructive"
+                    class="absolute -top-1 -right-1 h-4 min-w-4 justify-center rounded-full px-1 text-[10px] leading-none"
+                >
+                    <span class="sr-only">
+                        {{ summary.unread_count }} unread notifications</span
+                    >
+                    <span aria-hidden="true">{{ badgeLabel }}</span>
+                </Badge>
+            </Button>
+        </DropdownMenuTrigger>
 
         <DropdownMenuContent
+            side="bottom"
             align="end"
+            :collision-padding="16"
             class="w-[calc(100vw-2rem)] max-w-sm p-0"
         >
             <div class="flex items-center justify-between px-3 py-2">
                 <p class="text-sm font-semibold">Notifications</p>
                 <Button
-                    v-if="summary.unread_count > 0"
+                    v-if="showMarkAllAsRead(summary.unread_count)"
                     variant="ghost"
                     size="sm"
                     class="h-auto px-2 py-1 text-xs"

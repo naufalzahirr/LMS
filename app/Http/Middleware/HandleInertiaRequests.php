@@ -55,7 +55,10 @@ class HandleInertiaRequests extends Middleware
                 'has_active_teaching_course' => $user instanceof User
                     && $this->tutorAccess->hasAnyActiveCourse($user),
             ],
-            'notifications' => $user instanceof User
+            // Distinct from the Notification Center page's own paginated
+            // "notificationPage" prop — sharing a name would let the page
+            // prop silently overwrite this global summary in page.props.
+            'notificationSummary' => $user instanceof User
                 ? $this->notifications->sharedPayload($user)
                 : ['unread_count' => 0, 'latest' => []],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

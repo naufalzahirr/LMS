@@ -20,7 +20,11 @@ const RELATIVE_TIME_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
     ['minute', 60],
 ];
 
-const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
+// Locale is fixed to match the LMS's English-only UI, not the browser/OS
+// locale — otherwise relative timestamps render in whatever language the
+// visitor's device is set to (e.g. "31 menit yang lalu" on an Indonesian
+// browser) while the rest of the interface stays in English.
+const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', {
     numeric: 'auto',
 });
 

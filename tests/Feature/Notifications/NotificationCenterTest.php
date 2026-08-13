@@ -32,8 +32,34 @@ class NotificationCenterTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('notifications/Index')
-                ->has('notifications.data', 1)
+                ->has('notificationPage.data', 1)
                 ->where('unreadCount', 1));
+    }
+
+    public function test_authenticated_pages_share_the_global_notification_summary(): void
+    {
+        $user = $this->userWithRole('Student');
+        $this->notify($user);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('notificationSummary.unread_count', 1)
+                ->where('notificationSummary.latest.0.read_at', null));
+    }
+
+    public function test_notification_center_page_does_not_overwrite_the_global_summary_prop(): void
+    {
+        $user = $this->userWithRole('Student');
+        $this->notify($user);
+
+        $this->actingAs($user)->get(route('notifications.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('notifications/Index')
+                ->has('notificationPage.data', 1)
+                ->where('notificationSummary.unread_count', 1)
+                ->where('notificationSummary.latest.0.read_at', null));
     }
 
     public function test_user_cannot_mark_another_users_notification_as_read(): void

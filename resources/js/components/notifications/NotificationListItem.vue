@@ -2,6 +2,7 @@
 import { Link, router } from '@inertiajs/vue3';
 import { Check } from '@lucide/vue';
 import { Button } from '@/components/ui/button';
+import { isUnread, showMarkAsRead } from '@/lib/notificationDisplay';
 import { formatRelativeTime } from '@/lib/utils';
 import type { NotificationItem } from '@/types/notifications';
 
@@ -15,11 +16,11 @@ function markRead(): void {
 <template>
     <div
         class="flex gap-3 rounded-lg p-3"
-        :class="notification.read_at ? '' : 'bg-primary/5'"
+        :class="isUnread(notification) ? 'bg-primary/5' : ''"
     >
         <span
             class="mt-1.5 size-2 shrink-0 rounded-full"
-            :class="notification.read_at ? 'bg-transparent' : 'bg-primary'"
+            :class="isUnread(notification) ? 'bg-primary' : 'bg-transparent'"
             aria-hidden="true"
         />
         <div class="min-w-0 flex-1 space-y-1">
@@ -27,11 +28,11 @@ function markRead(): void {
                 <p
                     class="text-sm break-words"
                     :class="
-                        notification.read_at ? 'font-medium' : 'font-semibold'
+                        isUnread(notification) ? 'font-semibold' : 'font-medium'
                     "
                 >
                     {{ notification.title }}
-                    <span v-if="!notification.read_at" class="sr-only">
+                    <span v-if="isUnread(notification)" class="sr-only">
                         (unread)</span
                     >
                 </p>
@@ -53,7 +54,7 @@ function markRead(): void {
                     {{ notification.action_label }}
                 </Link>
                 <Button
-                    v-if="!notification.read_at"
+                    v-if="showMarkAsRead(notification)"
                     variant="ghost"
                     size="sm"
                     class="h-auto gap-1 px-2 py-1 text-xs text-muted-foreground"

@@ -19,7 +19,10 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
-            notifications: NotificationSummary;
+            // Global bell/dropdown summary — distinct from the Notification
+            // Center page's own "notificationPage" prop so neither can
+            // silently overwrite the other in page.props.
+            notificationSummary: NotificationSummary;
             sidebarOpen: boolean;
             [key: string]: unknown;
         };
