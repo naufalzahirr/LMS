@@ -81,7 +81,7 @@ class AssessmentQuestionImageTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('question.image.alt_text', 'Lima apel merah berjajar')
-                ->where('question.image.url', route('admin.questions.image', $question))
+                ->where('question.image.url', $asset->authoringUrl())
                 ->missing('question.image.file_path'));
     }
 

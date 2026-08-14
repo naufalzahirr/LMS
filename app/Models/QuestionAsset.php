@@ -38,6 +38,34 @@ class QuestionAsset extends Model
     }
 
     /**
+     * A token identifying the stored binary.
+     *
+     * Uploads land on a freshly generated random path, so the stored path
+     * changes exactly when the file behind it does — and never when only the
+     * alt text is corrected. Hashed so the payload carries no storage detail.
+     */
+    public function version(): string
+    {
+        return substr(hash('sha256', $this->file_path), 0, 12);
+    }
+
+    /**
+     * The authoring preview URL, versioned.
+     *
+     * The route addresses the image by question id, so a replacement would
+     * otherwise reach the browser as a byte-identical URL and leave the
+     * previous image on screen until a manual reload. Always build authoring
+     * URLs through here so a caller cannot omit the version.
+     */
+    public function authoringUrl(): string
+    {
+        return route('admin.questions.image', [
+            'question' => $this->question_id,
+            'v' => $this->version(),
+        ]);
+    }
+
+    /**
      * The stored path only when it is one this application wrote itself.
      * Mirrors LessonAsset: a row whose path was tampered with resolves to
      * null and is served as 404 rather than reaching the filesystem.

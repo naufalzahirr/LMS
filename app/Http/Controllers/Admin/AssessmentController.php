@@ -155,7 +155,7 @@ class AssessmentController extends Controller
                 'question_id' => $item->question_id,
                 'prompt' => $item->question->prompt,
                 'image' => $item->question->image === null ? null : [
-                    'url' => route('admin.questions.image', $item->question),
+                    'url' => $item->question->image->authoringUrl(),
                     'alt_text' => $item->question->image->alt_text,
                 ],
                 'question_type' => $item->question->question_type->value,

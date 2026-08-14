@@ -264,6 +264,7 @@ function removeAnswer(index: number): void {
             class="flex flex-wrap items-start gap-4"
         >
             <img
+                :key="existingImage.url"
                 :src="existingImage.url"
                 :alt="existingImage.alt_text"
                 class="h-auto w-full max-w-xs rounded-lg border bg-background object-contain"

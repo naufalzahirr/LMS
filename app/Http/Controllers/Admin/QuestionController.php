@@ -203,7 +203,7 @@ class QuestionController extends Controller
         }
 
         return [
-            'url' => route('admin.questions.image', $question),
+            'url' => $asset->authoringUrl(),
             'alt_text' => $asset->alt_text,
             'original_name' => $asset->original_name,
         ];
