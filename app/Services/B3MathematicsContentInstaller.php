@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Enums\AcademicStatus;
+use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentPurpose;
 use App\Enums\AssessmentStatus;
+use App\Enums\ClassAssessmentStatus;
 use App\Enums\LessonAssetType;
 use App\Enums\LessonCheckpointType;
 use App\Enums\LessonType;
@@ -13,6 +15,8 @@ use App\Models\Assessment;
 use App\Models\AssessmentQuestion;
 use App\Models\Competency;
 use App\Models\Course;
+use App\Models\LearningClass;
+use App\Models\LearningClassAssessment;
 use App\Models\Lesson;
 use App\Models\LessonAsset;
 use App\Models\LessonCheckpoint;
@@ -147,7 +151,8 @@ final class B3MathematicsContentInstaller
                 $competency = $this->competency($course);
                 $module = $this->module($competency);
                 $lessons = $this->installLessons($module, $sourcePaths);
-                [, $questions] = $this->installAssessment($course, $competency, $sourcePaths);
+                [$assessment, $questions] = $this->installAssessment($course, $competency, $sourcePaths);
+                $this->installClassAssignments($course, $assessment);
 
                 return [
                     'unique_source_assets' => count($sourcePaths),
@@ -1161,6 +1166,46 @@ final class B3MathematicsContentInstaller
         }
 
         return [$assessment->refresh(), $installedQuestions];
+    }
+
+    private function installClassAssignments(Course $course, Assessment $assessment): void
+    {
+        $classes = LearningClass::query()
+            ->where('course_id', $course->id)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($classes as $learningClass) {
+            $b1Assignment = LearningClassAssessment::query()
+                ->where('learning_class_id', $learningClass->id)
+                ->whereHas('assessment', fn ($query) => $query->where('code', 'B1-ASSESSMENT'))
+                ->first();
+            $configuration = [
+                'opens_at' => null,
+                'closes_at' => null,
+                'max_attempts' => 1,
+                'status' => ClassAssessmentStatus::Active,
+                'feedback_mode' => AssessmentFeedbackMode::AfterFinalAttempt,
+            ];
+
+            if ($b1Assignment instanceof LearningClassAssessment) {
+                $configuration = [
+                    'opens_at' => $b1Assignment->opens_at,
+                    'closes_at' => $b1Assignment->closes_at,
+                    'max_attempts' => $b1Assignment->max_attempts,
+                    'status' => $b1Assignment->status,
+                    'feedback_mode' => $b1Assignment->feedback_mode,
+                ];
+            }
+
+            LearningClassAssessment::query()->firstOrCreate(
+                [
+                    'learning_class_id' => $learningClass->id,
+                    'assessment_id' => $assessment->id,
+                ],
+                $configuration,
+            );
+        }
     }
 
     /** @param array<string, mixed> $payload */

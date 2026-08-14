@@ -2,12 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AcademicStatus;
+use App\Enums\AssessmentFeedbackMode;
 use App\Enums\AssessmentPurpose;
 use App\Enums\AssessmentStatus;
+use App\Enums\ClassAssessmentStatus;
+use App\Enums\EnrollmentStatus;
 use App\Enums\LessonCheckpointType;
 use App\Enums\QuestionType;
 use App\Models\Assessment;
 use App\Models\Competency;
+use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\LearningClass;
+use App\Models\LearningClassAssessment;
 use App\Models\Lesson;
 use App\Models\LessonAsset;
 use App\Models\LessonCheckpoint;
@@ -16,12 +24,16 @@ use App\Models\Program;
 use App\Models\Question;
 use App\Models\QuestionAsset;
 use App\Models\QuestionBank;
+use App\Models\User;
 use App\Services\LessonContentService;
+use App\Services\StudentAssessmentPayloadService;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -193,6 +205,112 @@ class B3MathematicsContentInstallationTest extends TestCase
         $this->assertDatabaseCount('lessons', 0);
         $this->assertDatabaseCount('lesson_assets', 0);
         $this->assertDatabaseCount('questions', 0);
+    }
+
+    public function test_installer_assigns_b3_to_existing_course_classes_and_student_flow_is_idempotent(): void
+    {
+        $program = Program::factory()->create([
+            'name' => 'Matematika',
+            'slug' => 'matematika',
+            'status' => AcademicStatus::Active,
+        ]);
+        $course = Course::factory()->for($program)->create([
+            'name' => 'Matematika Fase A – Kelas I',
+            'slug' => 'matematika-fase-a-kelas-i',
+            'sort_order' => 1,
+            'status' => AcademicStatus::Active,
+        ]);
+        $b1Competency = Competency::factory()->for($course)->create([
+            'code' => 'B.1',
+            'name' => 'Kompetensi B.1',
+            'slug' => 'b-1',
+            'sort_order' => 1,
+            'status' => AcademicStatus::Active,
+        ]);
+        $b1Assessment = Assessment::factory()->for($b1Competency)->published()->create([
+            'title' => 'Asesmen B.1 — Banyak Benda di Sekitarku',
+            'code' => 'B1-ASSESSMENT',
+            'purpose' => AssessmentPurpose::Mastery,
+        ]);
+        $learningClass = LearningClass::factory()->for($course)->create([
+            'name' => 'Matematika Fase A',
+            'code' => 'TESTING',
+        ]);
+        $classWithoutB1 = LearningClass::factory()->for($course)->create();
+        $b1Assignment = LearningClassAssessment::factory()
+            ->for($learningClass)
+            ->for($b1Assessment)
+            ->create([
+                'opens_at' => null,
+                'closes_at' => null,
+                'max_attempts' => 2,
+                'status' => ClassAssessmentStatus::Active,
+                'feedback_mode' => AssessmentFeedbackMode::AfterEachAttempt,
+            ]);
+
+        $this->seed(RolePermissionSeeder::class);
+        $student = User::factory()->create();
+        $student->assignRole('Student');
+        $enrollment = Enrollment::factory()->for($learningClass)->create([
+            'student_id' => $student->id,
+            'status' => EnrollmentStatus::Active,
+        ]);
+        $zip = $this->validAssetZip();
+
+        $this->artisan('content:install-b3', ['zip' => $zip])->assertSuccessful();
+
+        $b3Assessment = Assessment::query()->where('code', 'B3-ASSESSMENT')->sole();
+        $b3Assignment = LearningClassAssessment::query()
+            ->where('learning_class_id', $learningClass->id)
+            ->where('assessment_id', $b3Assessment->id)
+            ->sole();
+        $defaultAssignment = LearningClassAssessment::query()
+            ->where('learning_class_id', $classWithoutB1->id)
+            ->where('assessment_id', $b3Assessment->id)
+            ->sole();
+
+        $this->assertSame(8, $b3Assessment->assessmentQuestions()->count());
+        $this->assertSame(2, $learningClass->assessmentAssignments()->count());
+        $this->assertSame(1, $learningClass->assessmentAssignments()->where('assessment_id', $b1Assessment->id)->count());
+        $this->assertSame($b1Assignment->id, $learningClass->assessmentAssignments()->where('assessment_id', $b1Assessment->id)->sole()->id);
+        $this->assertSame(1, $learningClass->assessmentAssignments()->where('assessment_id', $b3Assessment->id)->count());
+        $this->assertSame(2, $b3Assignment->max_attempts);
+        $this->assertSame(ClassAssessmentStatus::Active, $b3Assignment->status);
+        $this->assertSame(AssessmentFeedbackMode::AfterEachAttempt, $b3Assignment->feedback_mode);
+        $this->assertSame(1, $defaultAssignment->max_attempts);
+        $this->assertSame(ClassAssessmentStatus::Active, $defaultAssignment->status);
+        $this->assertSame(AssessmentFeedbackMode::AfterFinalAttempt, $defaultAssignment->feedback_mode);
+
+        $cards = app(StudentAssessmentPayloadService::class)->assignmentsForEnrollment($enrollment);
+        $this->assertSame([
+            'Asesmen B.1 — Banyak Benda di Sekitarku',
+            'Asesmen B.3 — Urutan, Komposisi-Dekomposisi, dan Nilai Tempat Bilangan sampai 20',
+        ], collect($cards)->pluck('title')->sort()->values()->all());
+        $this->assertSame(8, collect($cards)->firstWhere('title', $b3Assessment->title)['question_count']);
+
+        $this->actingAs($student)->get(route('student.classes.show', $learningClass))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/classes/Show')
+                ->has('assessments', 2));
+        $this->actingAs($student)->get(route('student.assessments.index', $learningClass))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('student/assessments/Index')
+                ->has('assessments', 2));
+
+        $assignmentIds = LearningClassAssessment::query()->orderBy('id')->pluck('id')->all();
+        $this->artisan('content:install-b3', ['zip' => $zip])->assertSuccessful();
+
+        $this->assertSame($assignmentIds, LearningClassAssessment::query()->orderBy('id')->pluck('id')->all());
+        $this->assertSame(2, $learningClass->assessmentAssignments()->count());
+        $this->assertSame(1, $learningClass->assessmentAssignments()->where('assessment_id', $b1Assessment->id)->count());
+        $this->assertSame(1, $learningClass->assessmentAssignments()->where('assessment_id', $b3Assessment->id)->count());
+        $this->assertSame(1, $classWithoutB1->assessmentAssignments()->where('assessment_id', $b3Assessment->id)->count());
+        $this->assertSame(8, $b3Assessment->assessmentQuestions()->count());
+        $this->actingAs($student)->get(route('student.assessments.index', $learningClass))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('assessments', 2));
     }
 
     /** @param list<Lesson> $lessons */
