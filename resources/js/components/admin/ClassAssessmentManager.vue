@@ -75,13 +75,15 @@ function remove(item: ClassAssessmentAssignment): void {
             />
             <Form
                 v-bind="ClassAssessmentController.store.form(classId)"
-                class="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_12rem_12rem_8rem_12rem_10rem_auto]"
+                class="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-12"
                 v-slot="{ errors, processing }"
             >
-                <div class="grid gap-2">
+                <div class="grid min-w-0 gap-2 md:col-span-2 xl:col-span-4">
                     <Label for="assessment_id">Published assessment</Label
                     ><Select name="assessment_id" required
-                        ><SelectTrigger id="assessment_id" class="w-full"
+                        ><SelectTrigger
+                            id="assessment_id"
+                            class="w-full min-w-0"
                             ><SelectValue
                                 placeholder="Select an assessment" /></SelectTrigger
                         ><SelectContent
@@ -96,7 +98,7 @@ function remove(item: ClassAssessmentAssignment): void {
                         ></Select
                     ><InputError :message="errors.assessment_id" />
                 </div>
-                <div class="grid gap-2">
+                <div class="grid min-w-0 gap-2 xl:col-span-4">
                     <Label for="opens_at">Opens at</Label
                     ><Input
                         id="opens_at"
@@ -104,7 +106,7 @@ function remove(item: ClassAssessmentAssignment): void {
                         type="datetime-local"
                     /><InputError :message="errors.opens_at" />
                 </div>
-                <div class="grid gap-2">
+                <div class="grid min-w-0 gap-2 xl:col-span-4">
                     <Label for="closes_at">Closes at</Label
                     ><Input
                         id="closes_at"
@@ -112,7 +114,7 @@ function remove(item: ClassAssessmentAssignment): void {
                         type="datetime-local"
                     /><InputError :message="errors.closes_at" />
                 </div>
-                <div class="grid gap-2">
+                <div class="grid min-w-0 gap-2 xl:col-span-2">
                     <Label for="max_attempts">Max attempts</Label
                     ><Input
                         id="max_attempts"
@@ -123,13 +125,15 @@ function remove(item: ClassAssessmentAssignment): void {
                         required
                     /><InputError :message="errors.max_attempts" />
                 </div>
-                <div class="grid gap-2">
+                <div class="grid min-w-0 gap-2 xl:col-span-4">
                     <Label for="feedback_mode">Feedback</Label
                     ><Select
                         name="feedback_mode"
                         default-value="after_final_attempt"
                         required
-                        ><SelectTrigger id="feedback_mode" class="w-full"
+                        ><SelectTrigger
+                            id="feedback_mode"
+                            class="w-full min-w-0"
                             ><SelectValue /></SelectTrigger
                         ><SelectContent
                             ><SelectItem
@@ -141,10 +145,12 @@ function remove(item: ClassAssessmentAssignment): void {
                         ></Select
                     >
                 </div>
-                <div class="grid gap-2">
+                <div class="grid min-w-0 gap-2 xl:col-span-3">
                     <Label for="assignment_status">Status</Label
                     ><Select name="status" default-value="active" required
-                        ><SelectTrigger id="assignment_status" class="w-full"
+                        ><SelectTrigger
+                            id="assignment_status"
+                            class="w-full min-w-0"
                             ><SelectValue /></SelectTrigger
                         ><SelectContent
                             ><SelectItem
@@ -158,6 +164,7 @@ function remove(item: ClassAssessmentAssignment): void {
                 </div>
                 <Button
                     type="submit"
+                    class="w-full xl:col-span-3"
                     :disabled="processing || !assessmentOptions.length"
                     >Assign</Button
                 >
@@ -212,10 +219,10 @@ function remove(item: ClassAssessmentAssignment): void {
                                 assignment.id,
                             ])
                         "
-                        class="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[12rem_12rem_8rem_12rem_10rem_auto]"
+                        class="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-12"
                         v-slot="{ processing }"
                     >
-                        <div class="grid gap-2">
+                        <div class="grid min-w-0 gap-2 xl:col-span-4">
                             <Label :for="`opens-${assignment.id}`"
                                 >Opens at</Label
                             ><Input
@@ -225,7 +232,7 @@ function remove(item: ClassAssessmentAssignment): void {
                                 :default-value="assignment.opens_at ?? ''"
                             />
                         </div>
-                        <div class="grid gap-2">
+                        <div class="grid min-w-0 gap-2 xl:col-span-4">
                             <Label :for="`closes-${assignment.id}`"
                                 >Closes at</Label
                             ><Input
@@ -235,7 +242,7 @@ function remove(item: ClassAssessmentAssignment): void {
                                 :default-value="assignment.closes_at ?? ''"
                             />
                         </div>
-                        <div class="grid gap-2">
+                        <div class="grid min-w-0 gap-2 xl:col-span-4">
                             <Label :for="`attempts-${assignment.id}`"
                                 >Attempts</Label
                             ><Input
@@ -247,7 +254,7 @@ function remove(item: ClassAssessmentAssignment): void {
                                 required
                             />
                         </div>
-                        <div class="grid gap-2">
+                        <div class="grid min-w-0 gap-2 xl:col-span-4">
                             <Label :for="`feedback-${assignment.id}`"
                                 >Feedback</Label
                             ><Select
@@ -256,7 +263,7 @@ function remove(item: ClassAssessmentAssignment): void {
                                 required
                                 ><SelectTrigger
                                     :id="`feedback-${assignment.id}`"
-                                    class="w-full"
+                                    class="w-full min-w-0"
                                     ><SelectValue /></SelectTrigger
                                 ><SelectContent
                                     ><SelectItem
@@ -268,7 +275,7 @@ function remove(item: ClassAssessmentAssignment): void {
                                 ></Select
                             >
                         </div>
-                        <div class="grid gap-2">
+                        <div class="grid min-w-0 gap-2 xl:col-span-4">
                             <Label :for="`status-${assignment.id}`"
                                 >Status</Label
                             ><Select
@@ -277,7 +284,7 @@ function remove(item: ClassAssessmentAssignment): void {
                                 required
                                 ><SelectTrigger
                                     :id="`status-${assignment.id}`"
-                                    class="w-full"
+                                    class="w-full min-w-0"
                                     ><SelectValue /></SelectTrigger
                                 ><SelectContent
                                     ><SelectItem
@@ -292,6 +299,7 @@ function remove(item: ClassAssessmentAssignment): void {
                         <Button
                             type="submit"
                             variant="outline"
+                            class="w-full xl:col-span-4"
                             :disabled="processing"
                             >Save</Button
                         >
