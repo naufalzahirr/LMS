@@ -2,6 +2,7 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, Check, Pencil, X } from '@lucide/vue';
 import QuestionController from '@/actions/App/Http/Controllers/Admin/QuestionController';
+import QuestionImage from '@/components/assessment/QuestionImage.vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -83,12 +84,12 @@ defineOptions({
         >
         <Card
             ><CardHeader><CardTitle>Prompt</CardTitle></CardHeader
-            ><CardContent
+            ><CardContent class="space-y-4"
                 ><p class="leading-7 whitespace-pre-wrap">
                     {{ question.prompt }}
-                </p></CardContent
-            ></Card
-        >
+                </p>
+                <QuestionImage :image="question.image" /></CardContent
+        ></Card>
         <Card
             ><CardHeader><CardTitle>Answer key</CardTitle></CardHeader
             ><CardContent class="space-y-4">

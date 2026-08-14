@@ -9,15 +9,18 @@ use App\Http\Requests\Admin\StoreQuestionRequest;
 use App\Http\Requests\Admin\UpdateQuestionRequest;
 use App\Models\Question;
 use App\Models\QuestionAcceptedAnswer;
+use App\Models\QuestionAsset;
 use App\Models\QuestionOption;
 use App\Models\User;
 use App\Services\AssessmentAuthoringOptionsService;
+use App\Services\QuestionAssetService;
 use App\Services\QuestionService;
 use App\Services\TutorCourseAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuestionController extends Controller
 {
@@ -25,6 +28,7 @@ class QuestionController extends Controller
         private readonly QuestionService $service,
         private readonly AssessmentAuthoringOptionsService $options,
         private readonly TutorCourseAccessService $tutorAccess,
+        private readonly QuestionAssetService $images,
     ) {}
 
     public function index(Request $request): Response
@@ -94,6 +98,7 @@ class QuestionController extends Controller
     public function store(StoreQuestionRequest $request): RedirectResponse
     {
         $question = $this->service->create($request->payload());
+        $this->applyImage($request, $question);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Question created.')]);
 
         return to_route('admin.questions.show', $question);
@@ -102,7 +107,7 @@ class QuestionController extends Controller
     public function show(Question $question): Response
     {
         $this->authorize('view', $question);
-        $question->load(['questionBank.course.program', 'competency', 'options', 'acceptedAnswers']);
+        $question->load(['questionBank.course.program', 'competency', 'options', 'acceptedAnswers', 'image']);
 
         return Inertia::render('admin/questions/Show', ['question' => $this->authoringQuestion($question), 'canManage' => request()->user()?->can('update', $question) ?? false]);
     }
@@ -110,7 +115,7 @@ class QuestionController extends Controller
     public function edit(Request $request, Question $question): Response
     {
         $this->authorize('update', $question);
-        $question->load(['options', 'acceptedAnswers']);
+        $question->load(['options', 'acceptedAnswers', 'image']);
 
         return Inertia::render('admin/questions/Edit', ['question' => $this->authoringQuestion($question), ...$this->options->forUser($this->user($request)), 'questionTypes' => QuestionType::options(), 'statuses' => AcademicStatus::options()]);
     }
@@ -118,9 +123,19 @@ class QuestionController extends Controller
     public function update(UpdateQuestionRequest $request, Question $question): RedirectResponse
     {
         $this->service->update($question, $request->payload());
+        $this->applyImage($request, $question);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Question updated.')]);
 
         return to_route('admin.questions.show', $question);
+    }
+
+    public function image(Question $question): StreamedResponse
+    {
+        $this->authorize('view', $question);
+        $asset = $question->image;
+        abort_unless($asset instanceof QuestionAsset, 404);
+
+        return $this->images->response(request(), $asset);
     }
 
     public function destroy(Question $question): RedirectResponse
@@ -132,6 +147,34 @@ class QuestionController extends Controller
         return to_route('admin.questions.index');
     }
 
+    /**
+     * Apply the optional image side of a question submission. Removal wins
+     * over an upload so a single request can never both clear and set it.
+     */
+    private function applyImage(StoreQuestionRequest $request, Question $question): void
+    {
+        $question->loadMissing('image');
+
+        if ($request->shouldRemoveImage()) {
+            $this->images->delete($question);
+
+            return;
+        }
+
+        $file = $request->uploadedImage();
+        $altText = $request->imageAltText();
+
+        if ($file !== null) {
+            $this->images->replace($question, $file, $altText ?? '');
+
+            return;
+        }
+
+        if ($altText !== null && $question->image !== null) {
+            $this->images->updateAltText($question, $altText);
+        }
+    }
+
     /** @return array<string, mixed> */
     private function authoringQuestion(Question $question): array
     {
@@ -140,12 +183,29 @@ class QuestionController extends Controller
             'question_type' => $question->question_type->value, 'prompt' => $question->prompt, 'explanation' => $question->explanation,
             'default_points' => $question->default_points, 'correct_boolean' => $question->correct_boolean,
             'status' => $question->status->value, 'sort_order' => $question->sort_order,
+            'image' => $this->imagePayload($question),
             'bank' => $question->relationLoaded('questionBank') ? $question->questionBank->name : null,
             'competency' => $question->relationLoaded('competency') ? $question->competency->name : null,
             'course' => $question->relationLoaded('questionBank') ? $question->questionBank->course->name : null,
             'program' => $question->relationLoaded('questionBank') ? $question->questionBank->course->program->name : null,
             'options' => $question->options->map(fn (QuestionOption $option): array => ['id' => $option->id, 'option_text' => $option->option_text, 'is_correct' => $option->is_correct, 'sort_order' => $option->sort_order])->all(),
             'accepted_answers' => $question->acceptedAnswers->map(fn (QuestionAcceptedAnswer $answer): array => ['id' => $answer->id, 'answer_text' => $answer->answer_text, 'case_sensitive' => $answer->case_sensitive])->all(),
+        ];
+    }
+
+    /** @return array{url: string, alt_text: string, original_name: string}|null */
+    private function imagePayload(Question $question): ?array
+    {
+        $asset = $question->relationLoaded('image') ? $question->image : null;
+
+        if (! $asset instanceof QuestionAsset) {
+            return null;
+        }
+
+        return [
+            'url' => route('admin.questions.image', $question),
+            'alt_text' => $asset->alt_text,
+            'original_name' => $asset->original_name,
         ];
     }
 

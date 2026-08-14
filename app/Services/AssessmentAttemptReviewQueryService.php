@@ -44,6 +44,26 @@ class AssessmentAttemptReviewQueryService
         ];
     }
 
+    /**
+     * Graders read the same snapshotted image through the grading-scoped
+     * route, so a Tutor outside the attempt's class cannot fetch it.
+     *
+     * @return array{url: string, alt_text: string}|null
+     */
+    private function questionImage(AssessmentAttempt $attempt, AssessmentAttemptQuestion $question): ?array
+    {
+        $asset = $question->questionAsset;
+
+        if ($asset === null) {
+            return null;
+        }
+
+        return [
+            'url' => route('admin.attempt-question-images.show', [$attempt, $question]),
+            'alt_text' => $asset->alt_text,
+        ];
+    }
+
     /** @return Builder<AssessmentAttempt> */
     private function orderedAttemptsQuery(LearningClassAssessment $assignment, ?AssessmentAttemptStatus $status, ?string $search): Builder
     {
@@ -124,6 +144,7 @@ class AssessmentAttemptReviewQueryService
         $attempt->loadMissing([
             'enrollment.student:id,name,email',
             'classAssessment.assessment:id,title',
+            'attemptQuestions.questionAsset',
             'attemptQuestions.answer.selectedOptions',
         ]);
         abort_if($attempt->classAssessment->assessment === null, 404);
@@ -148,6 +169,7 @@ class AssessmentAttemptReviewQueryService
             'essays' => $essays->map(fn (AssessmentAttemptQuestion $question): array => [
                 'id' => $question->id,
                 'prompt' => $question->prompt,
+                'image' => $this->questionImage($attempt, $question),
                 'answer_text' => $question->answer?->answer_text,
                 'points' => $question->points,
                 'manual_score' => $question->answer?->manual_score,
@@ -159,6 +181,7 @@ class AssessmentAttemptReviewQueryService
                 'id' => $question->id,
                 'question_type' => $question->question_type->value,
                 'prompt' => $question->prompt,
+                'image' => $this->questionImage($attempt, $question),
                 'points' => $question->points,
                 'earned' => $question->answer?->auto_score,
                 'is_correct' => $question->answer?->is_correct,

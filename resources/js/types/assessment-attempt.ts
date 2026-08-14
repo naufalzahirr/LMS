@@ -1,4 +1,8 @@
-import type { AssessmentPurpose, QuestionType } from '@/types/assessment';
+import type {
+    AssessmentPurpose,
+    QuestionImage,
+    QuestionType,
+} from '@/types/assessment';
 
 export type AssessmentAttemptStatus =
     'in_progress' | 'pending_grading' | 'graded';
@@ -59,6 +63,7 @@ export type AssessmentPlayerQuestion = {
     id: number;
     question_type: QuestionType;
     prompt: string;
+    image: QuestionImage | null;
     points: string;
     sort_order: number;
     options: AssessmentPlayerOption[];
@@ -86,6 +91,7 @@ export type AssessmentResultQuestion = {
     id: number;
     question_type: QuestionType;
     prompt: string;
+    image: QuestionImage | null;
     question_points: string;
     points_earned: string | null;
     correct: boolean | null;

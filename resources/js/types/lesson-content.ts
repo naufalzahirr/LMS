@@ -31,6 +31,8 @@ export type LessonCheckpointPublicPayload = {
 };
 
 export type LessonCheckpointAuthorPayload = LessonCheckpointPublicPayload & {
+    correct_feedback: string | null;
+    incorrect_feedback: string | null;
     explanation: string | null;
     correct_option_ids: string[];
     correct_boolean: boolean | null;
@@ -41,6 +43,8 @@ export type LessonCheckpointAuthorPayload = LessonCheckpointPublicPayload & {
 export type LessonCheckpointAuthorInput = {
     checkpoint_type: LessonCheckpointType;
     prompt: string;
+    correct_feedback: string | null;
+    incorrect_feedback: string | null;
     explanation: string | null;
     options?: LessonCheckpointOption[];
     correct_option_ids?: string[];

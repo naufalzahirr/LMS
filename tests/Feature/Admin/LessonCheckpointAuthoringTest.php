@@ -126,6 +126,56 @@ class LessonCheckpointAuthoringTest extends TestCase
                 ->missing("{$checkpointPath}.interactive"));
     }
 
+    public function test_correct_and_incorrect_feedback_round_trip_and_clear_back_to_null(): void
+    {
+        $admin = $this->user('Admin');
+        $lesson = Lesson::factory()->create();
+        $payload = [
+            ...$this->multipleChoicePayload(),
+            'correct_feedback' => 'Hebat! Jawabanmu benar.',
+            'incorrect_feedback' => 'Belum tepat. Coba perhatikan gambarnya lagi.',
+        ];
+
+        $created = $this->actingAs($admin)
+            ->postJson(route('admin.lesson-checkpoints.store', $lesson), $payload)
+            ->assertCreated()
+            ->assertJsonPath('checkpoint.correct_feedback', $payload['correct_feedback'])
+            ->assertJsonPath('checkpoint.incorrect_feedback', $payload['incorrect_feedback']);
+        $checkpoint = LessonCheckpoint::query()->findOrFail($created->json('checkpoint.id'));
+
+        // Blank input must persist as null so the shared default applies again,
+        // rather than storing an empty string that renders as no feedback.
+        $this->actingAs($admin)
+            ->patchJson(route('admin.lesson-checkpoints.update', [$lesson, $checkpoint]), [
+                ...$payload,
+                'correct_feedback' => '   ',
+                'incorrect_feedback' => '',
+            ])
+            ->assertOk()
+            ->assertJsonPath('checkpoint.correct_feedback', null)
+            ->assertJsonPath('checkpoint.incorrect_feedback', null);
+
+        $this->assertDatabaseHas('lesson_checkpoints', [
+            'id' => $checkpoint->id,
+            'correct_feedback' => null,
+            'incorrect_feedback' => null,
+        ]);
+    }
+
+    public function test_feedback_fields_reject_input_beyond_the_stored_length(): void
+    {
+        $admin = $this->user('Admin');
+        $lesson = Lesson::factory()->create();
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.lesson-checkpoints.store', $lesson), [
+                ...$this->multipleChoicePayload(),
+                'correct_feedback' => str_repeat('a', 1001),
+                'incorrect_feedback' => str_repeat('b', 1001),
+            ])
+            ->assertJsonValidationErrors(['correct_feedback', 'incorrect_feedback']);
+    }
+
     public function test_tutor_scope_follows_the_parent_lesson_course(): void
     {
         $tutor = $this->user('Tutor');

@@ -29,6 +29,8 @@ class StoreLessonCheckpointRequest extends FormRequest
         return [
             'checkpoint_type' => ['required', Rule::enum(LessonCheckpointType::class)],
             'prompt' => ['required', 'string', 'max:5000'],
+            'correct_feedback' => ['nullable', 'string', 'max:1000'],
+            'incorrect_feedback' => ['nullable', 'string', 'max:1000'],
             'explanation' => ['nullable', 'string', 'max:10000'],
             'options' => $usesOptions ? ['required', 'array', 'min:2', 'max:10'] : ['prohibited'],
             'options.*.id' => ['required', 'uuid', 'distinct'],
@@ -101,6 +103,8 @@ class StoreLessonCheckpointRequest extends FormRequest
      * @return array{
      *     checkpoint_type: LessonCheckpointType,
      *     prompt: string,
+     *     correct_feedback: string|null,
+     *     incorrect_feedback: string|null,
      *     explanation: string|null,
      *     configuration: array<string, mixed>,
      *     answer_key: array<string, mixed>
@@ -139,11 +143,24 @@ class StoreLessonCheckpointRequest extends FormRequest
         return [
             'checkpoint_type' => $type,
             'prompt' => trim($this->string('prompt')->toString()),
+            'correct_feedback' => $this->trimmedOrNull('correct_feedback'),
+            'incorrect_feedback' => $this->trimmedOrNull('incorrect_feedback'),
             'explanation' => $this->filled('explanation')
                 ? trim($this->string('explanation')->toString())
                 : null,
             'configuration' => $configuration,
             'answer_key' => $answerKey,
         ];
+    }
+
+    /**
+     * Clearing an optional feedback field must persist as null so the shared
+     * default applies again, rather than storing an empty string.
+     */
+    private function trimmedOrNull(string $key): ?string
+    {
+        $value = trim($this->string($key)->toString());
+
+        return $value === '' ? null : $value;
     }
 }

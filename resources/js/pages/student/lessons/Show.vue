@@ -304,7 +304,7 @@ function synchronizeCheckpointMastery(
                         >
                             <CircleHelp class="size-3.5" />
                             {{ checkpointSummary.mastered }} /
-                            {{ checkpointSummary.total }} checkpoints correct
+                            {{ checkpointSummary.total }} soal sudah benar
                         </Badge>
                     </div>
                 </header>
@@ -340,13 +340,13 @@ function synchronizeCheckpointMastery(
                                 variant="outline"
                                 @click="setProgress('in_progress')"
                             >
-                                <RotateCcw /> Reopen lesson
+                                <RotateCcw /> Buka Lagi
                             </Button>
                             <Button
                                 v-else-if="canMutate"
                                 @click="setProgress('completed')"
                             >
-                                <CheckCircle2 /> Mark complete
+                                <CheckCircle2 /> Tandai Selesai
                             </Button>
                             <Button
                                 v-if="nextLesson"

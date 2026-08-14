@@ -13,6 +13,7 @@ import { computed } from 'vue';
 import AssessmentController from '@/actions/App/Http/Controllers/Admin/AssessmentController';
 import AssessmentQuestionController from '@/actions/App/Http/Controllers/Admin/AssessmentQuestionController';
 import AlertError from '@/components/AlertError.vue';
+import QuestionImage from '@/components/assessment/QuestionImage.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ import type { AcademicStatus } from '@/types/academic';
 import type {
     AssessmentPurpose,
     AssessmentStatus,
+    QuestionImage as QuestionImageValue,
     QuestionType,
 } from '@/types/assessment';
 
@@ -53,6 +55,7 @@ type CompositionItem = {
     id: number;
     question_id: number;
     prompt: string;
+    image: QuestionImageValue | null;
     question_type: QuestionType;
     bank: string;
     points: string;
@@ -292,6 +295,12 @@ function remove(item: CompositionItem): void {
                         </div>
                         <div>
                             <p class="font-medium">{{ item.prompt }}</p>
+                            <QuestionImage
+                                v-if="item.image"
+                                :image="item.image"
+                                size="sm"
+                                class="mt-2"
+                            />
                             <div class="mt-2 flex flex-wrap gap-2">
                                 <Badge variant="outline">{{
                                     item.question_type

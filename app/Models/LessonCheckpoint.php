@@ -18,6 +18,8 @@ use Illuminate\Support\Carbon;
  * @property int $lesson_id
  * @property LessonCheckpointType $checkpoint_type
  * @property string $prompt
+ * @property string|null $correct_feedback
+ * @property string|null $incorrect_feedback
  * @property string|null $explanation
  * @property array<string, mixed> $configuration
  * @property array<string, mixed> $answer_key
@@ -32,6 +34,8 @@ use Illuminate\Support\Carbon;
     'lesson_id',
     'checkpoint_type',
     'prompt',
+    'correct_feedback',
+    'incorrect_feedback',
     'explanation',
     'configuration',
     'answer_key',

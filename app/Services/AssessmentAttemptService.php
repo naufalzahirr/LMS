@@ -91,7 +91,7 @@ class AssessmentAttemptService
                 }
 
                 $questions = Question::query()
-                    ->with(['options', 'acceptedAnswers'])
+                    ->with(['options', 'acceptedAnswers', 'image'])
                     ->whereIn('id', $composition->pluck('question_id'))
                     ->get()
                     ->keyBy('id');
@@ -135,6 +135,7 @@ class AssessmentAttemptService
 
                     $snapshot = $attempt->attemptQuestions()->create([
                         'source_question_id' => $question->id,
+                        'question_asset_id' => $question->image?->id,
                         'question_type' => $question->question_type,
                         'prompt' => $question->prompt,
                         'explanation' => $question->explanation,

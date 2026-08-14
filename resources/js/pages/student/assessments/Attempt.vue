@@ -3,6 +3,7 @@ import { Head, Link, router, useHttp } from '@inertiajs/vue3';
 import { ArrowLeft, Send } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import QuestionImage from '@/components/assessment/QuestionImage.vue';
 import AnswerStatusBadge from '@/components/assessment-attempt/AnswerStatusBadge.vue';
 import QuestionNavigator from '@/components/assessment-attempt/QuestionNavigator.vue';
 import SubmitConfirmDialog from '@/components/assessment-attempt/SubmitConfirmDialog.vue';
@@ -362,6 +363,7 @@ function confirmSubmit(): void {
                     </div>
                 </CardHeader>
                 <CardContent class="space-y-4">
+                    <QuestionImage :image="question.image" />
                     <div
                         v-if="question.question_type === 'multiple_choice'"
                         class="space-y-3"

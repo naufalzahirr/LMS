@@ -135,6 +135,7 @@ class AssessmentController extends Controller
         $assessment->load([
             'competency.course.program',
             'assessmentQuestions.question.questionBank:id,name',
+            'assessmentQuestions.question.image',
         ]);
         $attachedQuestionIds = $assessment->assessmentQuestions->pluck('question_id');
         $candidates = Question::query()
@@ -153,6 +154,10 @@ class AssessmentController extends Controller
                 'id' => $item->id,
                 'question_id' => $item->question_id,
                 'prompt' => $item->question->prompt,
+                'image' => $item->question->image === null ? null : [
+                    'url' => route('admin.questions.image', $item->question),
+                    'alt_text' => $item->question->image->alt_text,
+                ],
                 'question_type' => $item->question->question_type->value,
                 'bank' => $item->question->questionBank->name,
                 'points' => $item->points,

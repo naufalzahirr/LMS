@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -32,6 +33,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read QuestionBank $questionBank
  * @property-read Competency $competency
+ * @property-read QuestionAsset|null $image
  * @property-read Collection<int, QuestionOption> $options
  * @property-read Collection<int, QuestionAcceptedAnswer> $acceptedAnswers
  * @property-read Collection<int, AssessmentQuestion> $assessmentQuestions
@@ -65,6 +67,17 @@ class Question extends Model
     public function competency(): BelongsTo
     {
         return $this->belongsTo(Competency::class);
+    }
+
+    /**
+     * The single optional stimulus image. Enforced as at most one row by the
+     * unique question_id index on question_assets.
+     *
+     * @return HasOne<QuestionAsset, $this>
+     */
+    public function image(): HasOne
+    {
+        return $this->hasOne(QuestionAsset::class);
     }
 
     /** @return HasMany<QuestionOption, $this> */

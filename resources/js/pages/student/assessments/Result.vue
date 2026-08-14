@@ -2,6 +2,7 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowLeft, CheckCircle2, Clock3, XCircle } from '@lucide/vue';
 import { onMounted, onUnmounted } from 'vue';
+import QuestionImage from '@/components/assessment/QuestionImage.vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -129,6 +130,7 @@ function displayAnswer(value: string | string[] | boolean | null): string {
                     </div>
                 </CardHeader>
                 <CardContent class="space-y-3 text-sm">
+                    <QuestionImage :image="question.image" />
                     <div class="flex items-center gap-2">
                         <CheckCircle2
                             v-if="question.correct === true"

@@ -28,6 +28,12 @@ const masteryContext = inject(lessonCheckpointMasteryKey, null);
 const selectedOption = ref('');
 const selectedOptions = ref<string[]>([]);
 const selectedBoolean = ref<'true' | 'false' | ''>('');
+// The submitted value stays the boolean the server evaluates; only its label
+// is localised, so the checkpoint answer contract is unchanged.
+const booleanChoices = [
+    { value: 'true', label: 'Benar' },
+    { value: 'false', label: 'Salah' },
+] as const;
 const fillAnswer = ref('');
 const submitting = ref(false);
 const error = ref('');
@@ -62,8 +68,8 @@ async function submit(): Promise<void> {
 
     if (!state?.can_submit || value === null) {
         error.value = state?.can_submit
-            ? 'Choose or enter an answer before checking.'
-            : 'This lesson is read only.';
+            ? 'Pilih atau isi jawabanmu dulu, ya.'
+            : 'Pelajaran ini hanya bisa dibaca.';
 
         return;
     }
@@ -91,7 +97,7 @@ async function submit(): Promise<void> {
             error.value =
                 Object.values(payload.errors ?? {})[0]?.[0] ??
                 payload.message ??
-                'The answer could not be checked.';
+                'Jawaban belum bisa diperiksa.';
 
             return;
         }
@@ -106,7 +112,7 @@ async function submit(): Promise<void> {
         }
     } catch {
         error.value =
-            'The answer could not be checked. Check your connection and try again.';
+            'Jawaban belum bisa diperiksa. Periksa koneksimu, lalu coba lagi.';
     } finally {
         submitting.value = false;
     }
@@ -169,7 +175,7 @@ function csrfToken(): string {
                 <span
                     class="inline-flex items-center gap-2 text-xs font-semibold tracking-wide text-violet-800 uppercase dark:text-violet-300"
                 >
-                    <CircleHelp class="size-4" /> Learning checkpoint ·
+                    <CircleHelp class="size-4" /> Ayo Coba ·
                     {{ checkpoint.type_label }}
                 </span>
                 <Badge
@@ -177,16 +183,16 @@ function csrfToken(): string {
                     variant="outline"
                     class="gap-1 border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
                 >
-                    <CheckCircle2 class="size-3.5" /> Mastered
+                    <CheckCircle2 class="size-3.5" /> Sudah Benar
                 </Badge>
                 <Badge
                     v-else-if="studentState && attemptCount > 0"
                     variant="secondary"
                 >
-                    Attempted
+                    Sudah Dicoba
                 </Badge>
                 <Badge v-else-if="!studentState" variant="secondary">
-                    Author preview
+                    Pratinjau Penulis
                 </Badge>
             </div>
         </div>
@@ -202,7 +208,7 @@ function csrfToken(): string {
                 v-if="checkpoint.type === 'multiple_select'"
                 class="text-sm text-muted-foreground"
             >
-                Select all that apply.
+                Pilih semua jawaban yang benar.
             </p>
 
             <fieldset
@@ -214,7 +220,7 @@ function csrfToken(): string {
                 class="space-y-2"
                 :disabled="submitting || !studentState?.can_submit"
             >
-                <legend class="sr-only">Answer options</legend>
+                <legend class="sr-only">Pilihan jawaban</legend>
                 <label
                     v-for="(option, index) in checkpoint.options"
                     :key="option.id"
@@ -241,7 +247,7 @@ function csrfToken(): string {
                         "
                     />
                     <span
-                        ><span class="sr-only">Option {{ index + 1 }}:</span
+                        ><span class="sr-only">Pilihan {{ index + 1 }}:</span
                         >{{ option.text }}</span
                     >
                 </label>
@@ -252,26 +258,26 @@ function csrfToken(): string {
                 class="grid grid-cols-2 gap-2"
                 :disabled="submitting || !studentState?.can_submit"
             >
-                <legend class="sr-only">Choose true or false</legend>
+                <legend class="sr-only">Pilih benar atau salah</legend>
                 <label
-                    v-for="choice in ['true', 'false'] as const"
-                    :key="choice"
-                    class="flex cursor-pointer items-center gap-3 rounded-lg border bg-background p-3 capitalize has-checked:border-violet-500 has-checked:bg-violet-50 dark:has-checked:bg-violet-950/40"
+                    v-for="choice in booleanChoices"
+                    :key="choice.value"
+                    class="flex cursor-pointer items-center gap-3 rounded-lg border bg-background p-3 has-checked:border-violet-500 has-checked:bg-violet-50 dark:has-checked:bg-violet-950/40"
                 >
                     <input
                         v-model="selectedBoolean"
                         type="radio"
                         :name="`checkpoint-${checkpoint.id}`"
-                        :value="choice"
+                        :value="choice.value"
                         class="size-4 accent-primary"
                     />
-                    {{ choice }}
+                    {{ choice.label }}
                 </label>
             </fieldset>
 
             <div v-else class="grid gap-2">
                 <Label :for="`checkpoint-${checkpoint.id}-answer`">
-                    Your answer
+                    Jawabanmu
                 </Label>
                 <Input
                     :id="`checkpoint-${checkpoint.id}-answer`"
@@ -290,7 +296,7 @@ function csrfToken(): string {
                     :disabled="submitting || !studentState.can_submit"
                     @click="submit"
                 >
-                    {{ submitting ? 'Checking…' : 'Check answer' }}
+                    {{ submitting ? 'Memeriksa…' : 'Periksa Jawaban' }}
                 </Button>
                 <Button
                     v-if="result"
@@ -299,14 +305,13 @@ function csrfToken(): string {
                     :disabled="submitting || !studentState.can_submit"
                     @click="retry"
                 >
-                    <RotateCcw /> Try again
+                    <RotateCcw /> Coba Lagi
                 </Button>
                 <span
                     v-if="attemptCount > 0"
                     class="text-xs text-muted-foreground"
                 >
-                    {{ attemptCount }}
-                    {{ attemptCount === 1 ? 'attempt' : 'attempts' }}
+                    {{ attemptCount }} kali mencoba
                 </span>
             </div>
 
@@ -333,14 +338,14 @@ function csrfToken(): string {
                 v-else-if="mastered && visibleExplanation"
                 class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"
             >
-                <p class="font-semibold">Previously mastered</p>
+                <p class="font-semibold">Sudah pernah kamu jawab benar</p>
                 <p class="mt-1">{{ visibleExplanation }}</p>
             </div>
             <p
                 v-else-if="!studentState && visibleExplanation"
                 class="text-sm leading-6 text-muted-foreground"
             >
-                <span class="font-medium text-foreground">Explanation:</span>
+                <span class="font-medium text-foreground">Penjelasan:</span>
                 {{ visibleExplanation }}
             </p>
 

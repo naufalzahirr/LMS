@@ -8,6 +8,7 @@ use App\Models\Competency;
 use App\Models\Question;
 use App\Models\QuestionBank;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 
 class StoreQuestionRequest extends FormRequest
@@ -41,7 +42,37 @@ class StoreQuestionRequest extends FormRequest
             'accepted_answers' => ['nullable', 'array'],
             'accepted_answers.*.answer_text' => ['nullable', 'string'],
             'accepted_answers.*.case_sensitive' => ['nullable', 'boolean'],
+            // Same envelope as a lesson image: private disk, real MIME check,
+            // 10 MB ceiling, and alt text required whenever a file is present.
+            'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'image_alt_text' => [
+                Rule::requiredIf($this->hasFile('image')),
+                'nullable',
+                'string',
+                'max:500',
+            ],
+            'remove_image' => ['sometimes', 'boolean'],
+            'image_path' => ['prohibited'],
         ];
+    }
+
+    public function uploadedImage(): ?UploadedFile
+    {
+        $image = $this->file('image');
+
+        return $image instanceof UploadedFile ? $image : null;
+    }
+
+    public function imageAltText(): ?string
+    {
+        $value = trim($this->string('image_alt_text')->toString());
+
+        return $value === '' ? null : $value;
+    }
+
+    public function shouldRemoveImage(): bool
+    {
+        return $this->boolean('remove_image');
     }
 
     /**

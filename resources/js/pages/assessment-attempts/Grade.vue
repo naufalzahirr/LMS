@@ -8,6 +8,7 @@ import {
     XCircle,
 } from '@lucide/vue';
 import { computed } from 'vue';
+import QuestionImage from '@/components/assessment/QuestionImage.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -17,12 +18,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { statusLabel } from '@/lib/assessmentAttempt';
-import type { QuestionType } from '@/types/assessment';
+import type {
+    QuestionImage as QuestionImageValue,
+    QuestionType,
+} from '@/types/assessment';
 import type { AssessmentAttemptStatus } from '@/types/assessment-attempt';
 
 type Essay = {
     id: number;
     prompt: string;
+    image: QuestionImageValue | null;
     answer_text: string | null;
     points: string;
     manual_score: string | null;
@@ -32,6 +37,7 @@ type AutoGradedQuestion = {
     id: number;
     question_type: QuestionType;
     prompt: string;
+    image: QuestionImageValue | null;
     points: string;
     earned: string | null;
     is_correct: boolean | null;
@@ -182,6 +188,7 @@ function submit(): void {
                 >
                     <div class="space-y-1">
                         <p class="text-sm font-medium">{{ question.prompt }}</p>
+                        <QuestionImage :image="question.image" size="sm" />
                         <p class="text-xs text-muted-foreground">
                             Answer: {{ displayAnswer(question.student_answer) }}
                         </p>
@@ -213,6 +220,7 @@ function submit(): void {
                     </div></CardHeader
                 >
                 <CardContent class="space-y-4">
+                    <QuestionImage :image="essay.image" />
                     <div
                         class="rounded-lg border bg-muted/30 p-4 whitespace-pre-line"
                     >

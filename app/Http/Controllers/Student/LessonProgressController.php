@@ -36,10 +36,10 @@ class LessonProgressController extends Controller
 
         if ($request->status() === LessonProgressStatus::Completed) {
             $this->progressService->complete($user, $enrollment, $lesson);
-            $message = __('Lesson marked complete.');
+            $message = __('Pelajaran ditandai selesai.');
         } else {
             $this->progressService->reopen($user, $enrollment, $lesson);
-            $message = __('Lesson reopened.');
+            $message = __('Pelajaran dibuka lagi.');
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $message]);

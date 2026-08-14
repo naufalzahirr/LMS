@@ -15,7 +15,15 @@ use InvalidArgumentException;
 final class LessonCheckpointService
 {
     /**
-     * @param  array{checkpoint_type: LessonCheckpointType, prompt: string, explanation: string|null, configuration: array<string, mixed>, answer_key: array<string, mixed>}  $data
+     * Shown when an author left the matching feedback field empty, including
+     * every checkpoint authored before those fields existed.
+     */
+    public const DEFAULT_CORRECT_FEEDBACK = 'Benar!';
+
+    public const DEFAULT_INCORRECT_FEEDBACK = 'Belum tepat.';
+
+    /**
+     * @param  array{checkpoint_type: LessonCheckpointType, prompt: string, correct_feedback: string|null, incorrect_feedback: string|null, explanation: string|null, configuration: array<string, mixed>, answer_key: array<string, mixed>}  $data
      */
     public function create(Lesson $lesson, User $author, array $data): LessonCheckpoint
     {
@@ -26,7 +34,7 @@ final class LessonCheckpointService
     }
 
     /**
-     * @param  array{checkpoint_type: LessonCheckpointType, prompt: string, explanation: string|null, configuration: array<string, mixed>, answer_key: array<string, mixed>}  $data
+     * @param  array{checkpoint_type: LessonCheckpointType, prompt: string, correct_feedback: string|null, incorrect_feedback: string|null, explanation: string|null, configuration: array<string, mixed>, answer_key: array<string, mixed>}  $data
      */
     public function update(LessonCheckpoint $checkpoint, array $data): LessonCheckpoint
     {
@@ -40,6 +48,8 @@ final class LessonCheckpointService
     {
         return [
             ...$this->publicPayload($checkpoint),
+            'correct_feedback' => $checkpoint->correct_feedback,
+            'incorrect_feedback' => $checkpoint->incorrect_feedback,
             'explanation' => $checkpoint->explanation,
             'correct_option_ids' => $checkpoint->answer_key['correct_option_ids'] ?? [],
             'correct_boolean' => $checkpoint->answer_key['correct_boolean'] ?? null,
@@ -136,10 +146,27 @@ final class LessonCheckpointService
         return [
             'correct' => $correct,
             'mastered' => $mastered,
-            'feedback' => $correct ? __('Correct.') : __('Not quite.'),
+            'feedback' => $this->feedbackFor($checkpoint, $correct),
             'explanation' => $checkpoint->explanation,
             'attempt_count' => $attempt->attempt_number,
         ];
+    }
+
+    /**
+     * Authored feedback for this outcome, falling back to the shared default
+     * so checkpoints saved before these fields existed keep responding.
+     */
+    public function feedbackFor(LessonCheckpoint $checkpoint, bool $correct): string
+    {
+        $authored = $correct ? $checkpoint->correct_feedback : $checkpoint->incorrect_feedback;
+
+        if (is_string($authored) && trim($authored) !== '') {
+            return trim($authored);
+        }
+
+        return $correct
+            ? __(self::DEFAULT_CORRECT_FEEDBACK)
+            : __(self::DEFAULT_INCORRECT_FEEDBACK);
     }
 
     /** @param list<int> $referencedIds */

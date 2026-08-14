@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property int $id
  * @property int $assessment_attempt_id
  * @property int|null $source_question_id
+ * @property int|null $question_asset_id
  * @property QuestionType $question_type
  * @property string $prompt
  * @property string|null $explanation
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property bool|null $correct_boolean
  * @property-read AssessmentAttempt $attempt
  * @property-read Question|null $sourceQuestion
+ * @property-read QuestionAsset|null $questionAsset
  * @property-read Collection<int, AssessmentAttemptOption> $options
  * @property-read Collection<int, AssessmentAttemptAcceptedAnswer> $acceptedAnswers
  * @property-read AssessmentAnswer|null $answer
@@ -32,6 +34,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[Fillable([
     'assessment_attempt_id',
     'source_question_id',
+    'question_asset_id',
     'question_type',
     'prompt',
     'explanation',
@@ -55,6 +58,16 @@ class AssessmentAttemptQuestion extends Model
     public function sourceQuestion(): BelongsTo
     {
         return $this->belongsTo(Question::class, 'source_question_id');
+    }
+
+    /**
+     * The image as snapshotted when this attempt started.
+     *
+     * @return BelongsTo<QuestionAsset, $this>
+     */
+    public function questionAsset(): BelongsTo
+    {
+        return $this->belongsTo(QuestionAsset::class);
     }
 
     /** @return HasMany<AssessmentAttemptOption, $this> */

@@ -60,6 +60,16 @@ const acceptedAnswers = reactive<AcceptedAnswerValue[]>(
         ? props.initial.accepted_answers.map((item) => ({ ...item }))
         : [{ answer_text: '', case_sensitive: false }],
 );
+const existingImage = props.initial?.image ?? null;
+const removeImage = ref(false);
+// Alt text is only required once a file is actually chosen, so the field
+// appears as soon as there is an image to describe.
+const selectedImageName = ref('');
+
+function onImageSelected(event: Event): void {
+    selectedImageName.value =
+        (event.target as HTMLInputElement).files?.[0]?.name ?? '';
+}
 
 const availableCourses = computed(() =>
     props.courses.filter(
@@ -238,6 +248,71 @@ function removeAnswer(index: number): void {
             autofocus
         />
         <InputError :message="errors.prompt" />
+    </div>
+
+    <div class="space-y-4 rounded-xl border p-4">
+        <div>
+            <p class="font-medium">Question image (optional)</p>
+            <p class="text-sm text-muted-foreground">
+                One private image shown above the answer options. JPEG, PNG, or
+                WebP up to 10 MB.
+            </p>
+        </div>
+
+        <div
+            v-if="existingImage && !removeImage"
+            class="flex flex-wrap items-start gap-4"
+        >
+            <img
+                :src="existingImage.url"
+                :alt="existingImage.alt_text"
+                class="h-auto w-full max-w-xs rounded-lg border bg-background object-contain"
+            />
+            <div class="text-sm text-muted-foreground">
+                <p>{{ existingImage.original_name }}</p>
+                <p class="mt-1">Upload a new file below to replace it.</p>
+            </div>
+        </div>
+
+        <div class="grid gap-2">
+            <Label for="question-image">
+                {{ existingImage ? 'Replace image' : 'Upload image' }}
+            </Label>
+            <Input
+                id="question-image"
+                name="image"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                :disabled="removeImage"
+                @change="onImageSelected"
+            />
+            <InputError :message="errors.image" />
+        </div>
+
+        <div v-if="existingImage || selectedImageName" class="grid gap-2">
+            <Label for="image_alt_text">Alt text</Label>
+            <Input
+                id="image_alt_text"
+                name="image_alt_text"
+                :default-value="initial?.image?.alt_text ?? ''"
+                :disabled="removeImage"
+                maxlength="500"
+                placeholder="Describe the image for screen readers."
+            />
+            <InputError :message="errors.image_alt_text" />
+        </div>
+
+        <label v-if="existingImage" class="flex items-center gap-2 text-sm">
+            <input type="hidden" name="remove_image" value="0" />
+            <input
+                v-model="removeImage"
+                type="checkbox"
+                name="remove_image"
+                value="1"
+                class="size-4"
+            />
+            Remove the current image on save
+        </label>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

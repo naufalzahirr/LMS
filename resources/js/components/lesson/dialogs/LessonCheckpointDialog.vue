@@ -36,6 +36,8 @@ const emit = defineEmits<{
 
 const checkpointType = ref<LessonCheckpointType>('multiple_choice');
 const prompt = ref('');
+const correctFeedback = ref('');
+const incorrectFeedback = ref('');
 const explanation = ref('');
 const options = ref<LessonCheckpointOption[]>([]);
 const correctOptionIds = ref<string[]>([]);
@@ -56,6 +58,8 @@ watch(
         const initial = props.initial;
         checkpointType.value = initial?.type ?? 'multiple_choice';
         prompt.value = initial?.prompt ?? '';
+        correctFeedback.value = initial?.correct_feedback ?? '';
+        incorrectFeedback.value = initial?.incorrect_feedback ?? '';
         explanation.value = initial?.explanation ?? '';
         options.value = initial?.options.length
             ? initial.options.map((option) => ({ ...option }))
@@ -146,6 +150,8 @@ function submit(): void {
     const value: LessonCheckpointAuthorInput = {
         checkpoint_type: checkpointType.value,
         prompt: prompt.value.trim(),
+        correct_feedback: correctFeedback.value.trim() || null,
+        incorrect_feedback: incorrectFeedback.value.trim() || null,
         explanation: explanation.value.trim() || null,
     };
 
@@ -486,9 +492,46 @@ function validate(): Record<string, string> {
                         </p>
                     </fieldset>
 
+                    <div class="grid gap-2 sm:grid-cols-2">
+                        <div class="grid gap-2">
+                            <Label for="checkpoint-correct-feedback">
+                                Correct feedback (optional)
+                            </Label>
+                            <Textarea
+                                id="checkpoint-correct-feedback"
+                                v-model="correctFeedback"
+                                rows="2"
+                                maxlength="1000"
+                                :disabled="busy"
+                                placeholder="Benar!"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                Shown only when the answer is correct. Defaults
+                                to “Benar!” when left empty.
+                            </p>
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="checkpoint-incorrect-feedback">
+                                Incorrect feedback (optional)
+                            </Label>
+                            <Textarea
+                                id="checkpoint-incorrect-feedback"
+                                v-model="incorrectFeedback"
+                                rows="2"
+                                maxlength="1000"
+                                :disabled="busy"
+                                placeholder="Belum tepat."
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                Shown only when the answer is wrong. Defaults to
+                                “Belum tepat.” when left empty.
+                            </p>
+                        </div>
+                    </div>
+
                     <div class="grid gap-2">
                         <Label for="checkpoint-explanation">
-                            Explanation / feedback (optional)
+                            Explanation (optional)
                         </Label>
                         <Textarea
                             id="checkpoint-explanation"
@@ -496,7 +539,7 @@ function validate(): Record<string, string> {
                             rows="3"
                             maxlength="10000"
                             :disabled="busy"
-                            placeholder="Shown after a learner checks an answer."
+                            placeholder="Shown after a learner checks an answer, whether it was correct or not."
                         />
                     </div>
 

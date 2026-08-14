@@ -44,6 +44,19 @@ export type AuthoringOptions = {
     questionBanks: QuestionBankOption[];
 };
 
+/**
+ * A question's single optional stimulus image. The url always points at a
+ * private, authorization-scoped route — never a public file path.
+ */
+export type QuestionImage = {
+    url: string;
+    alt_text: string;
+};
+
+export type AuthoredQuestionImage = QuestionImage & {
+    original_name: string;
+};
+
 export type QuestionOptionValue = {
     id?: number;
     option_text: string;
@@ -68,6 +81,7 @@ export type EditableQuestion = {
     correct_boolean: boolean | null;
     status: AcademicStatus;
     sort_order: number;
+    image: AuthoredQuestionImage | null;
     options: QuestionOptionValue[];
     accepted_answers: AcceptedAnswerValue[];
 };

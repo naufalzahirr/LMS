@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AssessmentAttemptController as AdminAssessmentAttemptController;
+use App\Http\Controllers\Admin\AssessmentAttemptImageController as AdminAssessmentAttemptImageController;
 use App\Http\Controllers\Admin\AssessmentController;
 use App\Http\Controllers\Admin\AssessmentQuestionController;
 use App\Http\Controllers\Admin\ClassAssessmentController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\Parent\DashboardController as ParentDashboardController
 use App\Http\Controllers\Parent\StudentController as ParentStudentController;
 use App\Http\Controllers\Student\AssessmentAnswerController as StudentAssessmentAnswerController;
 use App\Http\Controllers\Student\AssessmentAttemptController as StudentAssessmentAttemptController;
+use App\Http\Controllers\Student\AssessmentAttemptImageController as StudentAssessmentAttemptImageController;
 use App\Http\Controllers\Student\AssessmentController as StudentAssessmentController;
 use App\Http\Controllers\Student\LearningClassController as StudentLearningClassController;
 use App\Http\Controllers\Student\LessonAssetController as StudentLessonAssetController;
@@ -100,8 +102,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->parameters(['question-banks' => 'questionBank'])
         ->names('admin.question-banks');
 
+    Route::get('admin/questions/{question}/image', [QuestionController::class, 'image'])
+        ->name('admin.questions.image');
     Route::resource('admin/questions', QuestionController::class)
         ->names('admin.questions');
+    // Shared by the Admin and Tutor grading screens; the attempt policy's
+    // grade ability already covers both roles.
+    Route::get('admin/assessment-attempts/{attempt}/questions/{attemptQuestion}/image', [AdminAssessmentAttemptImageController::class, 'show'])
+        ->name('admin.attempt-question-images.show');
 
     Route::patch('admin/assessments/{assessment}/publish', [AssessmentController::class, 'publish'])
         ->name('admin.assessments.publish');
@@ -227,6 +235,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('student.assessment-attempts.submit');
     Route::get('student/assessment-attempts/{attempt}/result', [StudentAssessmentAttemptController::class, 'result'])
         ->name('student.assessment-attempts.result');
+    Route::get('student/assessment-attempts/{attempt}/questions/{attemptQuestion}/image', [StudentAssessmentAttemptImageController::class, 'show'])
+        ->name('student.attempt-question-images.show');
     Route::get('student/remedials/{remedialAssignment}', [StudentRemedialAssignmentController::class, 'show'])
         ->name('student.remedials.show');
     Route::patch('student/remedials/{remedialAssignment}/lessons/{item}/complete', [StudentRemedialAssignmentController::class, 'completeLesson'])

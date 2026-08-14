@@ -74,6 +74,7 @@ class StudentAssessmentPayloadService
         $attempt->loadMissing([
             'classAssessment.assessment:id,title',
             'attemptQuestions.options',
+            'attemptQuestions.questionAsset',
             'attemptQuestions.answer.selectedOptions',
         ]);
 
@@ -91,6 +92,7 @@ class StudentAssessmentPayloadService
                     'prompt' => $question->prompt,
                     'points' => $question->points,
                     'sort_order' => $question->sort_order,
+                    'image' => $this->questionImage($attempt, $question),
                     'options' => $question->options->map(fn (AssessmentAttemptOption $option): array => [
                         'id' => $option->id,
                         'option_text' => $option->option_text,
@@ -115,6 +117,7 @@ class StudentAssessmentPayloadService
             'classAssessment.assessment:id,title',
             'attemptQuestions.options',
             'attemptQuestions.acceptedAnswers',
+            'attemptQuestions.questionAsset',
             'attemptQuestions.answer.selectedOptions',
         ]);
         $detailed = $this->detailedFeedbackAllowed($attempt);
@@ -137,7 +140,7 @@ class StudentAssessmentPayloadService
         return [
             ...$payload,
             'questions' => $attempt->attemptQuestions->map(
-                fn (AssessmentAttemptQuestion $question): array => $this->resultQuestion($question),
+                fn (AssessmentAttemptQuestion $question): array => $this->resultQuestion($attempt, $question),
             )->values()->all(),
         ];
     }
@@ -294,8 +297,28 @@ class StudentAssessmentPayloadService
         ];
     }
 
+    /**
+     * The snapshotted image of an attempt question, addressed through the
+     * attempt so it inherits that attempt's authorization.
+     *
+     * @return array{url: string, alt_text: string}|null
+     */
+    private function questionImage(AssessmentAttempt $attempt, AssessmentAttemptQuestion $question): ?array
+    {
+        $asset = $question->questionAsset;
+
+        if ($asset === null) {
+            return null;
+        }
+
+        return [
+            'url' => route('student.attempt-question-images.show', [$attempt, $question]),
+            'alt_text' => $asset->alt_text,
+        ];
+    }
+
     /** @return array<string, mixed> */
-    private function resultQuestion(AssessmentAttemptQuestion $question): array
+    private function resultQuestion(AssessmentAttempt $attempt, AssessmentAttemptQuestion $question): array
     {
         $answer = $question->answer;
 
@@ -303,6 +326,7 @@ class StudentAssessmentPayloadService
             'id' => $question->id,
             'question_type' => $question->question_type->value,
             'prompt' => $question->prompt,
+            'image' => $this->questionImage($attempt, $question),
             'question_points' => $question->points,
             'points_earned' => $question->question_type === QuestionType::Essay
                 ? $answer?->manual_score
